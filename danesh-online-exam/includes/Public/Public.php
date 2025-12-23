@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-class Public_Class {
+class PublicModule {
     /**
      * Placeholder for enqueuing public assets.
      */
@@ -19,3 +19,6 @@ class Public_Class {
         // Intentionally left as a placeholder for future public assets.
     }
 }
+
+// Alias to maintain intended class name while avoiding reserved keyword conflicts.
+class_alias( __NAMESPACE__ . '\\PublicModule', __NAMESPACE__ . '\\Public' );
