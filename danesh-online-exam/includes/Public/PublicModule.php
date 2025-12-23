@@ -19,6 +19,3 @@ class PublicModule {
         // Intentionally left as a placeholder for future public assets.
     }
 }
-
-// Alias to maintain intended class name while avoiding reserved keyword conflicts.
-class_alias( __NAMESPACE__ . '\\PublicModule', __NAMESPACE__ . '\\Public' );

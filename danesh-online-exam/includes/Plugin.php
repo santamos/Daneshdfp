@@ -9,7 +9,7 @@ namespace Danesh\OnlineExam;
 
 use Danesh\OnlineExam\Admin\Admin;
 use Danesh\OnlineExam\Ajax\Ajax;
-use Danesh\OnlineExam\Public\Public;
+use Danesh\OnlineExam\Public\PublicModule;
 use Danesh\OnlineExam\Public\Shortcodes;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -56,9 +56,8 @@ class Plugin {
      * Registers public hooks and shortcodes.
      */
     private function define_public_hooks(): void {
-        $public_class = 'Danesh\\OnlineExam\\Public\\Public';
-        $public       = class_exists( $public_class ) ? new $public_class() : null;
-        $shortcodes   = new Shortcodes();
+        $public     = new PublicModule();
+        $shortcodes = new Shortcodes();
 
         // Placeholder for public actions.
         // $this->loader->add_action( 'wp_enqueue_scripts', $public, 'enqueue_styles' );
