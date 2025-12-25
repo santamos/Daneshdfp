@@ -102,6 +102,12 @@ class Routes {
                             'sanitize_callback' => 'absint',
                             'required'          => true,
                         ),
+                        'context' => array(
+                            'type'              => 'string',
+                            'sanitize_callback' => 'sanitize_text_field',
+                            'enum'              => array( 'view', 'edit' ),
+                            'default'           => 'view',
+                        ),
                     ),
                 ),
                 array(
@@ -234,7 +240,17 @@ class Routes {
      */
     public function list_choices( WP_REST_Request $request ) {
         $question_id = (int) $request->get_param( 'id' );
-        $response    = $this->service->list_choices( $question_id );
+        $context     = $request->get_param( 'context' ) ?: 'view';
+
+        if ( 'edit' === $context ) {
+            $permission = $this->check_manage_permissions();
+
+            if ( is_wp_error( $permission ) ) {
+                return $permission;
+            }
+        }
+
+        $response = $this->service->list_choices( $question_id );
 
         return $this->prepare_response( $response );
     }
