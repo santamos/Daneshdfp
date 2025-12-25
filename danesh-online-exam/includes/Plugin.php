@@ -10,6 +10,7 @@ namespace Danesh\OnlineExam;
 use Danesh\OnlineExam\Admin\Admin;
 use Danesh\OnlineExam\Ajax\Ajax;
 use Danesh\OnlineExam\DB\Migrations;
+use Danesh\OnlineExam\Rest\Routes;
 use Danesh\OnlineExam\Public\PublicModule;
 use Danesh\OnlineExam\Public\Shortcodes;
 
@@ -36,6 +37,7 @@ class Plugin {
         $this->define_admin_hooks();
         $this->define_public_hooks();
         $this->define_ajax_hooks();
+        $this->define_rest_hooks();
     }
 
     /**
@@ -84,6 +86,15 @@ class Plugin {
         // Placeholder for ajax actions.
         // $this->loader->add_action( 'wp_ajax_danesh_exam_action', $ajax, 'handle_authenticated_request' );
         // $this->loader->add_action( 'wp_ajax_nopriv_danesh_exam_action', $ajax, 'handle_public_request' );
+    }
+
+    /**
+     * Registers REST API routes.
+     */
+    private function define_rest_hooks(): void {
+        $routes = new Routes();
+
+        $this->loader->add_action( 'rest_api_init', $routes, 'register_routes' );
     }
 
     /**
