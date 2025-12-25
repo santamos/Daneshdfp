@@ -16,7 +16,7 @@ class Schema {
     /**
      * Current database version.
      */
-    public const DB_VERSION = '1.1.0';
+    public const DB_VERSION = '1.2.0';
 
     /**
      * Install or update database schema.
