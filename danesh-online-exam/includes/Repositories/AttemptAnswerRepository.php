@@ -24,7 +24,7 @@ class AttemptAnswerRepository {
      *
      * @return bool
      */
-    public function upsert_answer( int $attempt_id, int $question_id, int $choice_id, $is_correct = null ): bool {
+    public function upsert_answer( int $attempt_id, int $question_id, int $choice_id, $is_correct = false ): bool {
         global $wpdb;
 
         $table = Tables::attempt_answers();
@@ -32,7 +32,7 @@ class AttemptAnswerRepository {
             'attempt_id'  => absint( $attempt_id ),
             'question_id' => absint( $question_id ),
             'choice_id'   => absint( $choice_id ),
-            'is_correct'  => null === $is_correct ? null : ( $is_correct ? 1 : 0 ),
+            'is_correct'  => $is_correct ? 1 : 0,
             'answered_at' => current_time( 'mysql' ),
         );
 

@@ -200,7 +200,7 @@ class AttemptService {
             'score'        => (float) $scoring['score'],
             'max_score'    => (float) $scoring['max_score'],
             'submitted_at' => $ended_at,
-            'breakdown'    => $scoring['breakdown'],
+            'breakdown'    => $this->filter_breakdown_for_role( $scoring['breakdown'] ),
         );
     }
 
@@ -240,7 +240,7 @@ class AttemptService {
             'score'        => $score,
             'max_score'    => $max_score,
             'submitted_at' => $attempt['finished_at'] ?? '',
-            'breakdown'    => $scoring['breakdown'],
+            'breakdown'    => $this->filter_breakdown_for_role( $scoring['breakdown'] ),
         );
     }
 
@@ -372,6 +372,27 @@ class AttemptService {
             'score'     => $score,
             'max_score' => $max_score,
             'breakdown' => $breakdown,
+        );
+    }
+
+    /**
+     * Hide sensitive correctness data for students.
+     *
+     * @param array $breakdown Score breakdown.
+     *
+     * @return array
+     */
+    private function filter_breakdown_for_role( array $breakdown ): array {
+        if ( $this->is_manage_context() ) {
+            return $breakdown;
+        }
+
+        return array_map(
+            static function ( array $item ): array {
+                unset( $item['is_correct'] );
+                return $item;
+            },
+            $breakdown
         );
     }
 }
