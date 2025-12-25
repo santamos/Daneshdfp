@@ -7,6 +7,7 @@
 
 namespace Danesh\OnlineExam\Rest;
 
+use Danesh\OnlineExam\Services\AttemptService;
 use Danesh\OnlineExam\Services\ExamService;
 use WP_Error;
 use WP_REST_Request;
@@ -22,8 +23,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Routes {
     private ExamService $service;
 
-    public function __construct( ?ExamService $service = null ) {
-        $this->service = $service ?: new ExamService();
+    private AttemptService $attempt_service;
+
+    public function __construct( ?ExamService $service = null, ?AttemptService $attempt_service = null ) {
+        $this->service          = $service ?: new ExamService();
+        $this->attempt_service  = $attempt_service ?: new AttemptService();
     }
 
     /**
@@ -53,6 +57,7 @@ class Routes {
                         'type'              => 'integer',
                         'sanitize_callback' => 'absint',
                         'required'          => true,
+                        'validate_callback' => array( $this, 'validate_non_negative_int' ),
                     ),
                 ),
             )
@@ -104,6 +109,71 @@ class Routes {
                     'callback'            => array( $this, 'create_choice' ),
                     'permission_callback' => array( $this, 'check_manage_permissions' ),
                     'args'                => $this->get_choice_args(),
+                ),
+            )
+        );
+
+        register_rest_route(
+            'danesh/v1',
+            '/exams/(?P<id>\\d+)/attempts',
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'start_attempt' ),
+                'permission_callback' => array( $this, 'check_student_permissions' ),
+                'args'                => array(
+                    'id' => array(
+                        'type'              => 'integer',
+                        'sanitize_callback' => 'absint',
+                        'required'          => true,
+                        'validate_callback' => array( $this, 'validate_non_negative_int' ),
+                    ),
+                ),
+            )
+        );
+
+        register_rest_route(
+            'danesh/v1',
+            '/attempts/(?P<id>\\d+)/answers',
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'save_answer' ),
+                'permission_callback' => array( $this, 'check_student_permissions' ),
+                'args'                => $this->get_answer_args(),
+            )
+        );
+
+        register_rest_route(
+            'danesh/v1',
+            '/attempts/(?P<id>\\d+)/submit',
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'submit_attempt' ),
+                'permission_callback' => array( $this, 'check_student_permissions' ),
+                'args'                => array(
+                    'id' => array(
+                        'type'              => 'integer',
+                        'sanitize_callback' => 'absint',
+                        'required'          => true,
+                        'validate_callback' => array( $this, 'validate_non_negative_int' ),
+                    ),
+                ),
+            )
+        );
+
+        register_rest_route(
+            'danesh/v1',
+            '/attempts/(?P<id>\\d+)/report',
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_attempt_report' ),
+                'permission_callback' => array( $this, 'check_student_permissions' ),
+                'args'                => array(
+                    'id' => array(
+                        'type'              => 'integer',
+                        'sanitize_callback' => 'absint',
+                        'required'          => true,
+                        'validate_callback' => array( $this, 'validate_non_negative_int' ),
+                    ),
                 ),
             )
         );
@@ -185,6 +255,49 @@ class Routes {
     }
 
     /**
+     * Start an attempt.
+     */
+    public function start_attempt( WP_REST_Request $request ) {
+        $exam_id  = (int) $request->get_param( 'id' );
+        $response = $this->attempt_service->start_attempt( $exam_id );
+
+        return $this->prepare_response( $response, 201 );
+    }
+
+    /**
+     * Save an answer for an attempt.
+     */
+    public function save_answer( WP_REST_Request $request ) {
+        $attempt_id  = (int) $request->get_param( 'id' );
+        $question_id = (int) $request->get_param( 'question_id' );
+        $choice_id   = (int) $request->get_param( 'choice_id' );
+
+        $response = $this->attempt_service->save_answer( $attempt_id, $question_id, $choice_id );
+
+        return $this->prepare_response( $response );
+    }
+
+    /**
+     * Submit an attempt.
+     */
+    public function submit_attempt( WP_REST_Request $request ) {
+        $attempt_id = (int) $request->get_param( 'id' );
+        $response   = $this->attempt_service->submit_attempt( $attempt_id );
+
+        return $this->prepare_response( $response );
+    }
+
+    /**
+     * Get attempt report.
+     */
+    public function get_attempt_report( WP_REST_Request $request ) {
+        $attempt_id = (int) $request->get_param( 'id' );
+        $response   = $this->attempt_service->get_attempt_report( $attempt_id );
+
+        return $this->prepare_response( $response );
+    }
+
+    /**
      * Permission check for exam management.
      */
     public function check_manage_permissions() {
@@ -204,6 +317,17 @@ class Routes {
         }
 
         return new WP_Error( 'rest_forbidden', __( 'Authentication required to view exams.', 'danesh-online-exam' ), array( 'status' => 403 ) );
+    }
+
+    /**
+     * Permission check for students and managers.
+     */
+    public function check_student_permissions() {
+        if ( is_user_logged_in() ) {
+            return true;
+        }
+
+        return new WP_Error( 'rest_forbidden', __( 'Authentication required.', 'danesh-online-exam' ), array( 'status' => 403 ) );
     }
 
     /**
@@ -315,6 +439,32 @@ class Routes {
                 'sanitize_callback' => 'absint',
                 'validate_callback' => array( $this, 'validate_non_negative_int' ),
                 'default'           => 0,
+            ),
+        );
+    }
+
+    /**
+     * Schema for saving an answer.
+     */
+    private function get_answer_args(): array {
+        return array(
+            'id' => array(
+                'type'              => 'integer',
+                'sanitize_callback' => 'absint',
+                'required'          => true,
+                'validate_callback' => array( $this, 'validate_non_negative_int' ),
+            ),
+            'question_id' => array(
+                'type'              => 'integer',
+                'sanitize_callback' => 'absint',
+                'required'          => true,
+                'validate_callback' => array( $this, 'validate_non_negative_int' ),
+            ),
+            'choice_id' => array(
+                'type'              => 'integer',
+                'sanitize_callback' => 'absint',
+                'required'          => true,
+                'validate_callback' => array( $this, 'validate_non_negative_int' ),
             ),
         );
     }

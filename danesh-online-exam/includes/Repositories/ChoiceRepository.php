@@ -72,4 +72,21 @@ class ChoiceRepository {
 
         return false !== $deleted;
     }
+
+    /**
+     * Get a choice by ID.
+     *
+     * @param int $id Choice ID.
+     *
+     * @return array|null
+     */
+    public function get( int $id ): ?array {
+        global $wpdb;
+
+        $table = Tables::choices();
+        $query = $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $id );
+        $row   = $wpdb->get_row( $query, ARRAY_A );
+
+        return $row ?: null;
+    }
 }
