@@ -183,7 +183,19 @@ class ExamService {
 
         $choices = $this->choices->list_by_question( $question_id );
 
-        return array_map( array( $this, 'normalize_choice' ), $choices );
+        $normalized = array_map( array( $this, 'normalize_choice' ), $choices );
+
+        if ( $this->can_view_correctness() ) {
+            return $normalized;
+        }
+
+        return array_map(
+            static function ( array $choice ): array {
+                unset( $choice['is_correct'] );
+                return $choice;
+            },
+            $normalized
+        );
     }
 
     /**
