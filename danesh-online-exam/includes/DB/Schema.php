@@ -16,7 +16,7 @@ class Schema {
     /**
      * Current database version.
      */
-    public const DB_VERSION = '1.1.0';
+    public const DB_VERSION = '1.2.0';
 
     /**
      * Install or update database schema.
@@ -144,7 +144,7 @@ class Schema {
             attempt_id bigint(20) unsigned NOT NULL,
             question_id bigint(20) unsigned NOT NULL,
             choice_id bigint(20) unsigned NULL,
-            is_correct tinyint(1) NULL,
+            is_correct tinyint(1) NOT NULL DEFAULT 0,
             answered_at datetime NOT NULL,
             PRIMARY KEY  (id),
             UNIQUE KEY attempt_question (attempt_id, question_id),

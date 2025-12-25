@@ -183,7 +183,19 @@ class ExamService {
 
         $choices = $this->choices->list_by_question( $question_id );
 
-        return array_map( array( $this, 'normalize_choice' ), $choices );
+        $normalized = array_map( array( $this, 'normalize_choice' ), $choices );
+
+        if ( $this->can_view_correctness() ) {
+            return $normalized;
+        }
+
+        return array_map(
+            static function ( array $choice ): array {
+                unset( $choice['is_correct'] );
+                return $choice;
+            },
+            $normalized
+        );
     }
 
     /**
@@ -320,12 +332,24 @@ class ExamService {
      * Normalize choice output.
      */
     private function normalize_choice( array $row ): array {
-        return array(
+        $choice = array(
             'id'           => (int) $row['id'],
             'question_id'  => (int) $row['question_id'],
             'choice_text'  => sanitize_text_field( $row['choice_text'] ),
-            'is_correct'   => ! empty( $row['is_correct'] ),
             'sort_order'   => isset( $row['position'] ) ? (int) $row['position'] : 0,
         );
+
+        if ( $this->can_view_correctness() ) {
+            $choice['is_correct'] = ! empty( $row['is_correct'] );
+        }
+
+        return $choice;
+    }
+
+    /**
+     * Whether the current user can see correct answers.
+     */
+    private function can_view_correctness(): bool {
+        return current_user_can( 'danesh_manage_exams' ) || current_user_can( 'manage_options' );
     }
 }
