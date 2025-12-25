@@ -56,9 +56,9 @@ class Schema {
             title varchar(255) NOT NULL,
             duration_seconds int(10) unsigned NOT NULL DEFAULT 0,
             status varchar(20) NOT NULL DEFAULT 'draft',
-            created_by bigint(20) unsigned NOT NULL,
+            created_by bigint(20) unsigned NOT NULL DEFAULT 0,
             created_at datetime NOT NULL,
-            updated_at datetime NULL,
+            updated_at datetime DEFAULT NULL,
             PRIMARY KEY  (id),
             KEY created_by (created_by),
             KEY status (status)
