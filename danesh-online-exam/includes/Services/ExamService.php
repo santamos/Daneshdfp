@@ -235,7 +235,7 @@ class ExamService {
             return new WP_Error( 'invalid_question_type', __( 'Only multiple choice questions are supported in v1.', 'danesh-online-exam' ), array( 'status' => 400 ) );
         }
 
-        $prompt = isset( $payload['prompt'] ) ? wp_kses_post( $payload['prompt'] ) : '';
+        $prompt = isset( $payload['prompt'] ) ? sanitize_textarea_field( $payload['prompt'] ) : '';
 
         if ( '' === trim( wp_strip_all_tags( $prompt ) ) ) {
             return new WP_Error( 'invalid_question_prompt', __( 'Question prompt is required.', 'danesh-online-exam' ), array( 'status' => 400 ) );
@@ -309,7 +309,7 @@ class ExamService {
             'id'         => (int) $row['id'],
             'exam_id'    => (int) $row['exam_id'],
             'type'       => sanitize_text_field( $row['type'] ),
-            'prompt'     => wp_kses_post( $row['prompt'] ),
+            'prompt'     => sanitize_textarea_field( $row['prompt'] ),
             'points'     => isset( $row['points'] ) ? (float) $row['points'] : 0.0,
             'sort_order' => isset( $row['position'] ) ? (int) $row['position'] : 0,
             'created_at' => $row['created_at'] ?? '',

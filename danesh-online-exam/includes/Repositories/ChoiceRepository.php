@@ -25,8 +25,8 @@ class ChoiceRepository {
 
         $table       = Tables::choices();
         $insert_data = array(
-            'question_id' => $question_id,
-            'choice_text' => $data['choice_text'] ?? '',
+            'question_id' => absint( $question_id ),
+            'choice_text' => isset( $data['choice_text'] ) ? sanitize_text_field( $data['choice_text'] ) : '',
             'is_correct'  => ! empty( $data['is_correct'] ) ? 1 : 0,
             'position'    => isset( $data['position'] ) ? absint( $data['position'] ) : 0,
         );

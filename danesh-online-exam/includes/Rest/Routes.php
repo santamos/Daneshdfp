@@ -11,6 +11,9 @@ use Danesh\OnlineExam\Services\ExamService;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Server;
+use function absint;
+use function sanitize_text_field;
+use function sanitize_textarea_field;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -33,7 +36,7 @@ class Routes {
             array(
                 'methods'             => WP_REST_Server::CREATABLE,
                 'callback'            => array( $this, 'create_exam' ),
-                'permission_callback' => array( $this, 'check_permissions' ),
+                'permission_callback' => array( $this, 'check_manage_permissions' ),
                 'args'                => $this->get_exam_args(),
             )
         );
@@ -44,7 +47,7 @@ class Routes {
             array(
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => array( $this, 'get_exam' ),
-                'permission_callback' => array( $this, 'check_permissions' ),
+                'permission_callback' => array( $this, 'check_read_permissions' ),
                 'args'                => array(
                     'id' => array(
                         'type'              => 'integer',
@@ -62,7 +65,7 @@ class Routes {
                 array(
                     'methods'             => WP_REST_Server::READABLE,
                     'callback'            => array( $this, 'list_questions' ),
-                    'permission_callback' => array( $this, 'check_permissions' ),
+                    'permission_callback' => array( $this, 'check_read_permissions' ),
                     'args'                => array(
                         'id' => array(
                             'type'              => 'integer',
@@ -74,7 +77,7 @@ class Routes {
                 array(
                     'methods'             => WP_REST_Server::CREATABLE,
                     'callback'            => array( $this, 'create_question' ),
-                    'permission_callback' => array( $this, 'check_permissions' ),
+                    'permission_callback' => array( $this, 'check_manage_permissions' ),
                     'args'                => $this->get_question_args(),
                 ),
             )
@@ -87,7 +90,7 @@ class Routes {
                 array(
                     'methods'             => WP_REST_Server::READABLE,
                     'callback'            => array( $this, 'list_choices' ),
-                    'permission_callback' => array( $this, 'check_permissions' ),
+                    'permission_callback' => array( $this, 'check_read_permissions' ),
                     'args'                => array(
                         'id' => array(
                             'type'              => 'integer',
@@ -99,7 +102,7 @@ class Routes {
                 array(
                     'methods'             => WP_REST_Server::CREATABLE,
                     'callback'            => array( $this, 'create_choice' ),
-                    'permission_callback' => array( $this, 'check_permissions' ),
+                    'permission_callback' => array( $this, 'check_manage_permissions' ),
                     'args'                => $this->get_choice_args(),
                 ),
             )
@@ -184,12 +187,23 @@ class Routes {
     /**
      * Permission check for exam management.
      */
-    public function check_permissions() {
+    public function check_manage_permissions() {
         if ( current_user_can( 'danesh_manage_exams' ) || current_user_can( 'manage_options' ) ) {
             return true;
         }
 
         return new WP_Error( 'rest_forbidden', __( 'You are not allowed to manage exams.', 'danesh-online-exam' ), array( 'status' => 403 ) );
+    }
+
+    /**
+     * Permission check for viewing exam resources.
+     */
+    public function check_read_permissions() {
+        if ( is_user_logged_in() ) {
+            return true;
+        }
+
+        return new WP_Error( 'rest_forbidden', __( 'Authentication required to view exams.', 'danesh-online-exam' ), array( 'status' => 403 ) );
     }
 
     /**
@@ -223,6 +237,7 @@ class Routes {
                 'type'              => 'integer',
                 'required'          => false,
                 'sanitize_callback' => 'absint',
+                'validate_callback' => array( $this, 'validate_non_negative_int' ),
                 'default'           => 0,
             ),
             'status'           => array(
@@ -248,18 +263,20 @@ class Routes {
             'prompt' => array(
                 'type'              => 'string',
                 'required'          => true,
-                'sanitize_callback' => 'wp_kses_post',
+                'sanitize_callback' => 'sanitize_textarea_field',
             ),
             'points' => array(
                 'type'              => 'number',
                 'required'          => false,
                 'sanitize_callback' => array( $this, 'sanitize_float' ),
+                'validate_callback' => array( $this, 'validate_non_negative_number' ),
                 'default'           => 1,
             ),
             'sort_order' => array(
                 'type'              => 'integer',
                 'required'          => false,
                 'sanitize_callback' => 'absint',
+                'validate_callback' => array( $this, 'validate_non_negative_int' ),
                 'default'           => 0,
             ),
             'type' => array(
@@ -296,6 +313,7 @@ class Routes {
                 'type'              => 'integer',
                 'required'          => false,
                 'sanitize_callback' => 'absint',
+                'validate_callback' => array( $this, 'validate_non_negative_int' ),
                 'default'           => 0,
             ),
         );
@@ -317,5 +335,23 @@ class Routes {
      */
     public function sanitize_float( $value ): float {
         return (float) $value;
+    }
+
+    /**
+     * Validate non-negative integer fields.
+     *
+     * @param mixed $value Value to validate.
+     */
+    public function validate_non_negative_int( $value ): bool {
+        return is_numeric( $value ) && ( (int) $value ) >= 0;
+    }
+
+    /**
+     * Validate non-negative numeric fields.
+     *
+     * @param mixed $value Value to validate.
+     */
+    public function validate_non_negative_number( $value ): bool {
+        return is_numeric( $value ) && (float) $value >= 0;
     }
 }

@@ -25,11 +25,11 @@ class QuestionRepository {
 
         $table       = Tables::questions();
         $insert_data = array(
-            'exam_id'  => $exam_id,
-            'type'     => $data['type'] ?? 'mcq',
-            'prompt'   => $data['prompt'] ?? '',
-            'points'   => isset( $data['points'] ) ? $data['points'] : 1,
-            'position' => isset( $data['position'] ) ? absint( $data['position'] ) : 0,
+            'exam_id'    => absint( $exam_id ),
+            'type'       => isset( $data['type'] ) ? sanitize_text_field( $data['type'] ) : 'mcq',
+            'prompt'     => isset( $data['prompt'] ) ? sanitize_textarea_field( $data['prompt'] ) : '',
+            'points'     => isset( $data['points'] ) ? (float) $data['points'] : 1,
+            'position'   => isset( $data['position'] ) ? absint( $data['position'] ) : 0,
             'created_at' => current_time( 'mysql' ),
         );
 

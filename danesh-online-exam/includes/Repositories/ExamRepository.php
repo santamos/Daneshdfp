@@ -28,9 +28,9 @@ class ExamRepository {
         $created_by  = get_current_user_id();
         $created_at  = current_time( 'mysql' );
         $insert_data = array(
-            'title'            => $data['title'] ?? '',
+            'title'            => isset( $data['title'] ) ? sanitize_text_field( $data['title'] ) : '',
             'duration_seconds' => isset( $data['duration_seconds'] ) ? absint( $data['duration_seconds'] ) : 0,
-            'status'           => $data['status'] ?? 'draft',
+            'status'           => isset( $data['status'] ) ? sanitize_text_field( $data['status'] ) : 'draft',
             'created_by'       => $created_by ? absint( $created_by ) : 0,
             'created_at'       => $created_at,
         );
@@ -106,7 +106,17 @@ class ExamRepository {
 
         foreach ( $whitelist as $key ) {
             if ( array_key_exists( $key, $data ) ) {
-                $fields[ $key ] = $data[ $key ];
+                switch ( $key ) {
+                    case 'duration_seconds':
+                        $fields[ $key ] = absint( $data[ $key ] );
+                        break;
+                    case 'status':
+                        $fields[ $key ] = sanitize_text_field( $data[ $key ] );
+                        break;
+                    default:
+                        $fields[ $key ] = sanitize_text_field( $data[ $key ] );
+                        break;
+                }
             }
         }
 
