@@ -22,6 +22,24 @@ class Tables {
     }
 
     /**
+     * Get the choices table name.
+     */
+    public static function choices(): string {
+        global $wpdb;
+
+        return $wpdb->prefix . 'danesh_choices';
+    }
+
+    /**
+     * Get the attempt answers table name.
+     */
+    public static function attempt_answers(): string {
+        global $wpdb;
+
+        return $wpdb->prefix . 'danesh_attempt_answers';
+    }
+
+    /**
      * Get the questions table name.
      */
     public static function questions(): string {

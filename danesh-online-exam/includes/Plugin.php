@@ -9,6 +9,7 @@ namespace Danesh\OnlineExam;
 
 use Danesh\OnlineExam\Admin\Admin;
 use Danesh\OnlineExam\Ajax\Ajax;
+use Danesh\OnlineExam\DB\Migrations;
 use Danesh\OnlineExam\Public\PublicModule;
 use Danesh\OnlineExam\Public\Shortcodes;
 
@@ -31,6 +32,7 @@ class Plugin {
         $this->loader = new Loader();
 
         $this->set_locale();
+        $this->define_db_hooks();
         $this->define_admin_hooks();
         $this->define_public_hooks();
         $this->define_ajax_hooks();
@@ -41,6 +43,15 @@ class Plugin {
      */
     private function set_locale(): void {
         $this->loader->add_action( 'init', $this, 'load_textdomain' );
+    }
+
+    /**
+     * Registers database migration hooks.
+     */
+    private function define_db_hooks(): void {
+        $migrations = new Migrations();
+
+        $this->loader->add_action( 'admin_init', $migrations, 'maybe_upgrade' );
     }
 
     /**
