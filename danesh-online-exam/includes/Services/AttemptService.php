@@ -271,15 +271,27 @@ if ( ! $attempt_id ) {
             return new WP_Error( 'attempt_already_submitted', __( 'Attempt has already been submitted.', 'danesh-online-exam' ), array( 'status' => 400 ) );
         }
 
-        if ( $this->is_expired( $attempt['expires_at'] ?? null ) ) {
-            return new WP_Error( 'attempt_expired', __( 'The attempt has expired.', 'danesh-online-exam' ), array( 'status' => 400 ) );
+        if ( 'expired' === $attempt['status'] ) {
+            return new WP_Error( 'attempt_expired', __( 'Attempt expired', 'danesh-online-exam' ), array( 'status' => 403 ) );
+        }
+
+        if ( 'in_progress' !== $attempt['status'] ) {
+            return new WP_Error( 'attempt_not_in_progress', __( 'Attempt is not in progress.', 'danesh-online-exam' ), array( 'status' => 400 ) );
+        }
+
+        $now = $this->get_current_timestamp();
+
+        if ( $this->is_expired( $attempt['expires_at'] ?? null, $now ) ) {
+            $this->attempts->mark_expired( $attempt_id, $this->format_gmt_datetime( $now ) );
+
+            return new WP_Error( 'attempt_expired', __( 'Attempt expired', 'danesh-online-exam' ), array( 'status' => 403 ) );
         }
 
         $questions = $this->questions->list_by_exam( (int) $attempt['exam_id'] );
         $answers   = $this->answers->list_answers( $attempt_id );
         $scoring   = $this->calculate_score( $questions, $answers );
 
-        $ended_at = current_time( 'mysql' );
+        $ended_at = $this->format_gmt_datetime( $now );
         $updated  = $this->attempts->set_submitted( $attempt_id, $ended_at, $scoring['score'], $scoring['max_score'] );
 
         if ( ! $updated ) {
@@ -494,6 +506,11 @@ if ( ! $attempt_id ) {
         foreach ( $questions as $question ) {
             $question_id      = (int) $question['id'];
             $points           = isset( $question['points'] ) ? (float) $question['points'] : 0.0;
+
+            if ( $points <= 0 ) {
+                $points = 1.0;
+            }
+
             $max_score       += $points;
             $selected_choice  = $answers_by_question[ $question_id ]['choice_id'] ?? null;
             $choice_id        = $selected_choice ? (int) $selected_choice : null;
