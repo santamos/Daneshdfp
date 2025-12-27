@@ -63,34 +63,38 @@ class AttemptService {
             return new WP_Error( 'exam_not_found', __( 'Exam not found.', 'danesh-online-exam' ), array( 'status' => 404 ) );
         }
 
-        if ( ! $this->is_manage_context() && 'published' !== $exam['status'] ) {
-            return new WP_Error( 'exam_not_published', __( 'The exam is not available for attempts.', 'danesh-online-exam' ), array( 'status' => 403 ) );
-        }
+      if ( ! $this->is_manage_context() && 'published' !== $exam['status'] ) {
+    return new WP_Error(
+        'exam_not_published',
+        __( 'The exam is not available for attempts.', 'danesh-online-exam' ),
+        array( 'status' => 403 )
+    );
+}
 
-        $now               = current_time( 'timestamp' );
-        $active_attempt    = $this->attempts->find_active_attempt( $exam_id, $user_id );
-        $expires_at        = $active_attempt['expires_at'] ?? null;
+$now            = $this->get_current_timestamp();
+$active_attempt = $this->attempts->find_active_attempt( $exam_id, $user_id );
+$expires_at     = $active_attempt['expires_at'] ?? null;
 
-        if ( $active_attempt && ! $this->is_expired( $expires_at, $now ) ) {
-            $attempt = $this->normalize_attempt( $active_attempt, $now );
-            $attempt['resumed'] = true;
+if ( $active_attempt && ! $this->is_expired( $expires_at, $now ) ) {
+    $attempt            = $this->normalize_attempt( $active_attempt, $now );
+    $attempt['resumed'] = true;
+    return $attempt;
+}
 
-            return $attempt;
-        }
+if ( $active_attempt && $this->is_expired( $expires_at, $now ) ) {
+    $this->attempts->mark_expired( (int) $active_attempt['id'], $this->format_gmt_datetime( $now ) );
+}
 
-        if ( $active_attempt && $this->is_expired( $expires_at, $now ) ) {
-            $this->attempts->mark_expired( (int) $active_attempt['id'], current_time( 'mysql' ) );
-        }
+$started_at        = $this->format_gmt_datetime( $now );
+$expires_at        = $this->calculate_expiry( (int) ( $exam['duration_seconds'] ?? 0 ), $now );
+$remaining_seconds = $this->calculate_remaining_seconds( $expires_at, $now );
 
-        $started_at        = current_time( 'mysql' );
-        $expires_at        = $this->calculate_expiry( (int) ( $exam['duration_seconds'] ?? 0 ), $now );
-        $remaining_seconds = $this->calculate_remaining_seconds( $expires_at, $now );
+$attempt_id = $this->attempts->create_attempt( $exam_id, $user_id, $started_at, $expires_at, 'in_progress' );
 
-        $attempt_id = $this->attempts->create_attempt( $exam_id, $user_id, $started_at, $expires_at, 'in_progress' );
+if ( ! $attempt_id ) {
+    return new WP_Error( 'attempt_create_failed', __( 'Unable to start attempt.', 'danesh-online-exam' ), array( 'status' => 500 ) );
+}
 
-        if ( ! $attempt_id ) {
-            return new WP_Error( 'attempt_create_failed', __( 'Unable to start attempt.', 'danesh-online-exam' ), array( 'status' => 500 ) );
-        }
 
         $attempt = $this->attempts->get_attempt( $attempt_id );
 
@@ -153,7 +157,7 @@ class AttemptService {
 
         $is_correct = ! empty( $choice['is_correct'] );
 
-        $stored = $this->answers->upsert_answer( $attempt_id, $question_id, $choice_id, $is_correct );
+        $stored = $this->answers->upsert_answer( $attempt_id, $question_id, $choice_id, false );
 
         if ( ! $stored ) {
             return new WP_Error( 'answer_save_failed', __( 'Unable to save answer.', 'danesh-online-exam' ), array( 'status' => 500 ) );
@@ -287,6 +291,22 @@ class AttemptService {
     }
 
     /**
+     * Get the current UTC timestamp.
+     */
+    private function get_current_timestamp(): int {
+        return time();
+    }
+
+    /**
+     * Format a GMT datetime string.
+     *
+     * @param int $timestamp Timestamp.
+     */
+    private function format_gmt_datetime( int $timestamp ): string {
+        return gmdate( 'Y-m-d H:i:s', $timestamp );
+    }
+
+    /**
      * Calculate expiry date for an attempt.
      *
      * @param int   $duration_seconds Duration in seconds.
@@ -299,7 +319,7 @@ class AttemptService {
             return null;
         }
 
-        return wp_date( 'Y-m-d H:i:s', $reference + $duration_seconds );
+        return $this->format_gmt_datetime( $reference + $duration_seconds );
     }
 
     /**
@@ -321,11 +341,20 @@ class AttemptService {
             return null;
         }
 
-        $now = $reference ?? current_time( 'timestamp' );
+        $now = $reference ?? $this->get_current_timestamp();
 
         return max( 0, $expiry_ts - $now );
     }
 
+    /**
+     * Calculate remaining seconds until expiry.
+     *
+     * @param string|null $expires_at Expiry timestamp.
+     * @param int|null    $reference  Reference timestamp.
+     *
+     * @return int|null
+     */
+   
     /**
      * Whether the attempt has expired.
      *
@@ -343,7 +372,7 @@ class AttemptService {
             return false;
         }
 
-        $now = $reference ?? current_time( 'timestamp' );
+        $now = $reference ?? $this->get_current_timestamp();
 
         return $expiry_ts <= $now;
     }
