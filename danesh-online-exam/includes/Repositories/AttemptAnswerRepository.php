@@ -20,11 +20,10 @@ class AttemptAnswerRepository {
      * @param int      $attempt_id  Attempt ID.
      * @param int      $question_id Question ID.
      * @param int      $choice_id   Choice ID.
-     * @param bool|int $is_correct  Whether the answer is correct.
      *
      * @return bool
      */
-    public function upsert_answer( int $attempt_id, int $question_id, int $choice_id, $is_correct = false ): bool {
+    public function upsert_answer( int $attempt_id, int $question_id, int $choice_id ): bool {
         global $wpdb;
 
         $table = Tables::attempt_answers();
@@ -32,7 +31,7 @@ class AttemptAnswerRepository {
             'attempt_id'  => absint( $attempt_id ),
             'question_id' => absint( $question_id ),
             'choice_id'   => absint( $choice_id ),
-            'is_correct'  => $is_correct ? 1 : 0,
+            'is_correct'  => 0,
             'answered_at' => current_time( 'mysql' ),
         );
 
@@ -57,5 +56,24 @@ class AttemptAnswerRepository {
         $query = $wpdb->prepare( "SELECT * FROM {$table} WHERE attempt_id = %d", $attempt_id );
 
         return $wpdb->get_results( $query, ARRAY_A );
+    }
+
+    /**
+     * Count answered questions for an attempt.
+     *
+     * @param int $attempt_id Attempt ID.
+     *
+     * @return int
+     */
+    public function count_answered( int $attempt_id ): int {
+        global $wpdb;
+
+        $table = Tables::attempt_answers();
+        $query = $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table} WHERE attempt_id = %d AND choice_id IS NOT NULL",
+            $attempt_id
+        );
+
+        return (int) $wpdb->get_var( $query );
     }
 }
