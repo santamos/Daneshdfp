@@ -67,18 +67,24 @@ class AttemptService {
             return new WP_Error( 'exam_not_published', __( 'The exam is not available for attempts.', 'danesh-online-exam' ), array( 'status' => 403 ) );
         }
 
-        $existing_attempts = $this->attempts->list_attempts_by_user( $exam_id, $user_id );
         $now               = current_time( 'timestamp' );
+        $active_attempt    = $this->attempts->find_active_attempt( $exam_id, $user_id );
+        $expires_at        = $active_attempt['expires_at'] ?? null;
 
-        foreach ( $existing_attempts as $attempt ) {
-            $expires_at = $attempt['expires_at'] ?? null;
-            if ( 'submitted' !== $attempt['status'] && ! $this->is_expired( $expires_at, $now ) ) {
-                return new WP_Error( 'attempt_in_progress', __( 'You already have an active attempt for this exam.', 'danesh-online-exam' ), array( 'status' => 400 ) );
-            }
+        if ( $active_attempt && ! $this->is_expired( $expires_at, $now ) ) {
+            $attempt = $this->normalize_attempt( $active_attempt, $now );
+            $attempt['resumed'] = true;
+
+            return $attempt;
         }
 
-        $started_at = current_time( 'mysql' );
-        $expires_at = $this->calculate_expiry( (int) ( $exam['duration_seconds'] ?? 0 ), $now );
+        if ( $active_attempt && $this->is_expired( $expires_at, $now ) ) {
+            $this->attempts->mark_expired( (int) $active_attempt['id'], current_time( 'mysql' ) );
+        }
+
+        $started_at        = current_time( 'mysql' );
+        $expires_at        = $this->calculate_expiry( (int) ( $exam['duration_seconds'] ?? 0 ), $now );
+        $remaining_seconds = $this->calculate_remaining_seconds( $expires_at, $now );
 
         $attempt_id = $this->attempts->create_attempt( $exam_id, $user_id, $started_at, $expires_at, 'in_progress' );
 
@@ -92,7 +98,11 @@ class AttemptService {
             return new WP_Error( 'attempt_load_failed', __( 'Unable to load attempt data.', 'danesh-online-exam' ), array( 'status' => 500 ) );
         }
 
-        return $this->normalize_attempt( $attempt );
+        $normalized               = $this->normalize_attempt( $attempt, $now );
+        $normalized['resumed']    = false;
+        $normalized['remaining_seconds'] = $remaining_seconds;
+
+        return $normalized;
     }
 
     /**
@@ -293,6 +303,30 @@ class AttemptService {
     }
 
     /**
+     * Calculate remaining seconds until expiry.
+     *
+     * @param string|null $expires_at Expiry timestamp.
+     * @param int|null    $reference  Reference timestamp.
+     *
+     * @return int|null
+     */
+    private function calculate_remaining_seconds( ?string $expires_at, ?int $reference = null ): ?int {
+        if ( empty( $expires_at ) ) {
+            return null;
+        }
+
+        $expiry_ts = strtotime( $expires_at );
+
+        if ( ! $expiry_ts ) {
+            return null;
+        }
+
+        $now = $reference ?? current_time( 'timestamp' );
+
+        return max( 0, $expiry_ts - $now );
+    }
+
+    /**
      * Whether the attempt has expired.
      *
      * @param string|null $expires_at Expiry timestamp.
@@ -319,15 +353,18 @@ class AttemptService {
      *
      * @param array $attempt Attempt record.
      */
-    private function normalize_attempt( array $attempt ): array {
+    private function normalize_attempt( array $attempt, ?int $reference = null ): array {
+        $remaining_seconds = $this->calculate_remaining_seconds( $attempt['expires_at'] ?? null, $reference );
+
         return array(
-            'id'         => (int) $attempt['id'],
-            'exam_id'    => (int) $attempt['exam_id'],
-            'user_id'    => (int) $attempt['user_id'],
-            'status'     => sanitize_text_field( $attempt['status'] ?? 'in_progress' ),
-            'started_at' => $attempt['started_at'] ?? '',
-            'expires_at' => $attempt['expires_at'] ?? null,
-            'finished_at' => $attempt['finished_at'] ?? null,
+            'id'                => (int) $attempt['id'],
+            'exam_id'           => (int) $attempt['exam_id'],
+            'user_id'           => (int) $attempt['user_id'],
+            'status'            => sanitize_text_field( $attempt['status'] ?? 'in_progress' ),
+            'started_at'        => $attempt['started_at'] ?? '',
+            'expires_at'        => $attempt['expires_at'] ?? null,
+            'finished_at'       => $attempt['finished_at'] ?? null,
+            'remaining_seconds' => $remaining_seconds,
         );
     }
 
