@@ -59,6 +59,41 @@ class AttemptAnswerRepository {
     }
 
     /**
+     * List the latest answer selection per question for an attempt.
+     *
+     * @param int $attempt_id Attempt ID.
+     *
+     * @return array
+     */
+    public function list_answer_selections( int $attempt_id ): array {
+        global $wpdb;
+
+        $table = Tables::attempt_answers();
+        $query = $wpdb->prepare(
+            "SELECT question_id, choice_id FROM {$table} WHERE attempt_id = %d ORDER BY answered_at DESC, id DESC",
+            $attempt_id
+        );
+
+        $rows        = $wpdb->get_results( $query, ARRAY_A );
+        $selections  = array();
+
+        foreach ( $rows as $row ) {
+            $question_id = (int) $row['question_id'];
+
+            if ( isset( $selections[ $question_id ] ) ) {
+                continue;
+            }
+
+            $selections[ $question_id ] = array(
+                'question_id' => $question_id,
+                'choice_id'   => isset( $row['choice_id'] ) ? (int) $row['choice_id'] : null,
+            );
+        }
+
+        return array_values( $selections );
+    }
+
+    /**
      * Count answered questions for an attempt.
      *
      * @param int $attempt_id Attempt ID.
