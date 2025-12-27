@@ -139,6 +139,24 @@ class Routes {
 
         register_rest_route(
             'danesh/v1',
+            '/attempts/(?P<attempt_id>\\d+)',
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_attempt' ),
+                'permission_callback' => 'is_user_logged_in',
+                'args'                => array(
+                    'attempt_id' => array(
+                        'type'              => 'integer',
+                        'sanitize_callback' => 'absint',
+                        'required'          => true,
+                        'validate_callback' => array( $this, 'validate_non_negative_int' ),
+                    ),
+                ),
+            )
+        );
+
+        register_rest_route(
+            'danesh/v1',
             '/attempts/(?P<id>\\d+)/answers',
             array(
                 'methods'             => WP_REST_Server::CREATABLE,
@@ -302,6 +320,16 @@ class Routes {
         }
 
         $response = $this->attempt_service->save_answers( $attempt_id, is_array( $payload ) ? $payload : array() );
+
+        return $this->prepare_response( $response );
+    }
+
+    /**
+     * Get attempt status and answers.
+     */
+    public function get_attempt( WP_REST_Request $request ) {
+        $attempt_id = (int) $request->get_param( 'attempt_id' );
+        $response   = $this->attempt_service->get_attempt( $attempt_id );
 
         return $this->prepare_response( $response );
     }

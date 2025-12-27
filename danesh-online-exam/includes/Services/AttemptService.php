@@ -44,6 +44,54 @@ class AttemptService {
     }
 
     /**
+     * Get an attempt status and answers.
+     *
+     * @param int $attempt_id Attempt ID.
+     *
+     * @return array|WP_Error
+     */
+    public function get_attempt( int $attempt_id ) {
+        $attempt = $this->attempts->get_attempt( $attempt_id );
+
+        if ( ! $attempt ) {
+            return new WP_Error( 'attempt_not_found', __( 'Attempt not found.', 'danesh-online-exam' ), array( 'status' => 404 ) );
+        }
+
+        $access = $this->enforce_attempt_access( $attempt );
+
+        if ( is_wp_error( $access ) ) {
+            return $access;
+        }
+
+        $now = $this->get_current_timestamp();
+
+        if ( 'in_progress' === ( $attempt['status'] ?? '' ) && $this->is_expired( $attempt['expires_at'] ?? null, $now ) ) {
+            $finished_at = $this->format_gmt_datetime( $now );
+            $this->attempts->mark_expired( $attempt_id, $finished_at );
+            $attempt['status']      = 'expired';
+            $attempt['finished_at'] = $finished_at;
+        }
+
+        $normalized                   = $this->normalize_attempt( $attempt, $now );
+        $normalized['answered_count'] = $this->answers->count_answered( $attempt_id );
+        $normalized['answers']        = array_map(
+            static function ( array $answer ): array {
+                return array(
+                    'question_id' => (int) $answer['question_id'],
+                    'choice_id'   => (int) $answer['choice_id'],
+                );
+            },
+            $this->answers->list_answer_selections( $attempt_id )
+        );
+
+        if ( 'expired' === $normalized['status'] ) {
+            $normalized['remaining_seconds'] = 0;
+        }
+
+        return $normalized;
+    }
+
+    /**
      * Start a new attempt for an exam.
      *
      * @param int $exam_id Exam ID.
