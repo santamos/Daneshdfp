@@ -115,4 +115,54 @@ class AttemptRepository {
 
         return $wpdb->get_results( $query, ARRAY_A );
     }
+
+    /**
+     * Get the latest in-progress attempt for a user and exam.
+     *
+     * @param int $exam_id Exam ID.
+     * @param int $user_id User ID.
+     *
+     * @return array|null
+     */
+    public function find_active_attempt( int $exam_id, int $user_id ): ?array {
+        global $wpdb;
+
+        $table = Tables::attempts();
+        $query = $wpdb->prepare(
+            "SELECT * FROM {$table} WHERE exam_id = %d AND user_id = %d AND status = %s ORDER BY id DESC LIMIT 1",
+            $exam_id,
+            $user_id,
+            'in_progress'
+        );
+
+        $row = $wpdb->get_row( $query, ARRAY_A );
+
+        return $row ?: null;
+    }
+
+    /**
+     * Mark an attempt as expired.
+     *
+     * @param int    $attempt_id Attempt ID.
+     * @param string $finished_at Finished at timestamp.
+     *
+     * @return bool
+     */
+    public function mark_expired( int $attempt_id, string $finished_at ): bool {
+        global $wpdb;
+
+        $table   = Tables::attempts();
+        $updated = $wpdb->update(
+            $table,
+            array(
+                'status'      => 'expired',
+                'finished_at' => $finished_at,
+            ),
+            array( 'id' => $attempt_id ),
+            array( '%s', '%s' ),
+            array( '%d' )
+        );
+
+        return false !== $updated;
+    }
 }

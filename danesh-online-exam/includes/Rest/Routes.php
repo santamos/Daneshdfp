@@ -277,7 +277,13 @@ class Routes {
         $exam_id  = (int) $request->get_param( 'id' );
         $response = $this->attempt_service->start_attempt( $exam_id );
 
-        return $this->prepare_response( $response, 201 );
+        $status = 201;
+
+        if ( ! is_wp_error( $response ) && ! empty( $response['resumed'] ) ) {
+            $status = 200;
+        }
+
+        return $this->prepare_response( $response, $status );
     }
 
     /**
