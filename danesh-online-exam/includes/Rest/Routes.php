@@ -291,10 +291,17 @@ class Routes {
      */
     public function save_answer( WP_REST_Request $request ) {
         $attempt_id  = (int) $request->get_param( 'id' );
-        $question_id = (int) $request->get_param( 'question_id' );
-        $choice_id   = (int) $request->get_param( 'choice_id' );
+        $payload     = $request->get_json_params();
 
-        $response = $this->attempt_service->save_answer( $attempt_id, $question_id, $choice_id );
+        if ( empty( $payload ) ) {
+            $payload = array(
+                'question_id' => $request->get_param( 'question_id' ),
+                'choice_id'   => $request->get_param( 'choice_id' ),
+                'answers'     => $request->get_param( 'answers' ),
+            );
+        }
+
+        $response = $this->attempt_service->save_answers( $attempt_id, is_array( $payload ) ? $payload : array() );
 
         return $this->prepare_response( $response );
     }
@@ -479,14 +486,35 @@ class Routes {
             'question_id' => array(
                 'type'              => 'integer',
                 'sanitize_callback' => 'absint',
-                'required'          => true,
+                'required'          => false,
                 'validate_callback' => array( $this, 'validate_non_negative_int' ),
             ),
             'choice_id' => array(
                 'type'              => 'integer',
                 'sanitize_callback' => 'absint',
-                'required'          => true,
+                'required'          => false,
                 'validate_callback' => array( $this, 'validate_non_negative_int' ),
+            ),
+            'answers' => array(
+                'type'  => 'array',
+                'required' => false,
+                'items' => array(
+                    'type'       => 'object',
+                    'properties' => array(
+                        'question_id' => array(
+                            'type'              => 'integer',
+                            'sanitize_callback' => 'absint',
+                            'required'          => true,
+                            'validate_callback' => array( $this, 'validate_non_negative_int' ),
+                        ),
+                        'choice_id'   => array(
+                            'type'              => 'integer',
+                            'sanitize_callback' => 'absint',
+                            'required'          => true,
+                            'validate_callback' => array( $this, 'validate_non_negative_int' ),
+                        ),
+                    ),
+                ),
             ),
         );
     }
