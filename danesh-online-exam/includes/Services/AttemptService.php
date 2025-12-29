@@ -153,10 +153,17 @@ class AttemptService {
 
             $choice_map[ $question_id ][] = $this->normalize_choice_for_paper( $choice, $is_edit );
         }
+foreach ( $selections as $selection ) {
+    $qid = (int) ( $selection['question_id'] ?? 0 );
+    if ( $qid <= 0 ) {
+        continue;
+    }
 
-        foreach ( $selections as $selection ) {
-            $selection_map[ (int) $selection['question_id'] ] = isset( $selection['choice_id'] ) ? (int) $selection['choice_id'] : null;
-        }
+   $cid_raw = $selection['choice_id'] ?? ( $selection['selected_choice_id'] ?? null );
+
+    $selection_map[ $qid ] = is_null( $cid_raw ) ? null : (int) $cid_raw;
+}
+
 
         $remaining_seconds = $this->calculate_remaining_seconds( $attempt['expires_at'] ?? null, $now );
 
