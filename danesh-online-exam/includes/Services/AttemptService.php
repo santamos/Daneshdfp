@@ -13,6 +13,7 @@ use Danesh\OnlineExam\Repositories\ChoiceRepository;
 use Danesh\OnlineExam\Repositories\ExamRepository;
 use Danesh\OnlineExam\Repositories\QuestionRepository;
 use WP_Error;
+use WP_REST_Request;
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -89,6 +90,101 @@ class AttemptService {
         }
 
         return $normalized;
+    }
+
+    /**
+     * Get the paper (questions and choices) for an attempt.
+     *
+     * @param int              $attempt_id Attempt ID.
+     * @param WP_REST_Request  $request    REST request.
+     *
+     * @return array|WP_Error
+     */
+    public function get_attempt_paper( int $attempt_id, WP_REST_Request $request ) {
+        $attempt = $this->attempts->get_attempt( $attempt_id );
+
+        if ( ! $attempt ) {
+            return new WP_Error( 'attempt_not_found', __( 'Attempt not found.', 'danesh-online-exam' ), array( 'status' => 404 ) );
+        }
+
+        $access = $this->enforce_attempt_access( $attempt );
+
+        if ( is_wp_error( $access ) ) {
+            return $access;
+        }
+
+        $now     = $this->get_current_timestamp();
+        $status  = $attempt['status'] ?? '';
+        $is_edit = $this->is_manage_context() && ( 'edit' === ( $request->get_param( 'context' ) ?? '' ) );
+
+        if ( 'in_progress' === $status && $this->is_expired( $attempt['expires_at'] ?? null, $now ) ) {
+            $finished_at = $this->format_gmt_datetime( $now );
+            $this->attempts->mark_expired( $attempt_id, $finished_at );
+
+            return new WP_Error( 'attempt_expired', __( 'Attempt expired', 'danesh-online-exam' ), array( 'status' => 403 ) );
+        }
+
+        if ( 'submitted' === $status ) {
+            return new WP_Error( 'attempt_already_submitted', __( 'Attempt has already been submitted.', 'danesh-online-exam' ), array( 'status' => 400 ) );
+        }
+
+        if ( 'expired' === $status ) {
+            return new WP_Error( 'attempt_expired', __( 'Attempt expired', 'danesh-online-exam' ), array( 'status' => 403 ) );
+        }
+
+        $questions     = $this->questions->list_by_exam( (int) $attempt['exam_id'] );
+        $question_ids  = array_map(
+            static function ( $question ): int {
+                return (int) ( $question['id'] ?? 0 );
+            },
+            $questions
+        );
+        $choice_rows   = $this->choices->list_by_question_ids( $question_ids );
+        $selections    = $this->answers->list_answer_selections( $attempt_id );
+        $choice_map    = array();
+        $selection_map = array();
+
+        foreach ( $choice_rows as $choice ) {
+            $question_id = (int) ( $choice['question_id'] ?? 0 );
+
+            if ( ! isset( $choice_map[ $question_id ] ) ) {
+                $choice_map[ $question_id ] = array();
+            }
+
+            $choice_map[ $question_id ][] = $this->normalize_choice_for_paper( $choice, $is_edit );
+        }
+
+        foreach ( $selections as $selection ) {
+            $selection_map[ (int) $selection['question_id'] ] = isset( $selection['choice_id'] ) ? (int) $selection['choice_id'] : null;
+        }
+
+        $remaining_seconds = $this->calculate_remaining_seconds( $attempt['expires_at'] ?? null, $now );
+
+        return array(
+            'attempt'   => array(
+                'id'                => (int) $attempt['id'],
+                'exam_id'           => (int) $attempt['exam_id'],
+                'status'            => sanitize_text_field( $attempt['status'] ?? 'in_progress' ),
+                'started_at'        => $attempt['started_at'] ?? '',
+                'expires_at'        => $attempt['expires_at'] ?? null,
+                'remaining_seconds' => $remaining_seconds,
+            ),
+            'questions' => array_map(
+                function ( array $question ) use ( $choice_map, $selection_map ): array {
+                    $question_id = (int) $question['id'];
+
+                    return array(
+                        'id'                  => $question_id,
+                        'prompt'              => sanitize_textarea_field( $question['prompt'] ?? '' ),
+                        'type'                => sanitize_text_field( $question['type'] ?? 'mcq' ),
+                        'points'              => isset( $question['points'] ) ? (float) $question['points'] : 0.0,
+                        'selected_choice_id'  => $selection_map[ $question_id ] ?? null,
+                        'choices'             => $choice_map[ $question_id ] ?? array(),
+                    );
+                },
+                $questions
+            ),
+        );
     }
 
     /**
@@ -532,6 +628,29 @@ if ( ! $attempt_id ) {
             'finished_at'       => $attempt['finished_at'] ?? null,
             'remaining_seconds' => $remaining_seconds,
         );
+    }
+
+    /**
+     * Normalize choice output for attempt paper.
+     *
+     * @param array $choice Choice record.
+     * @param bool  $is_edit Whether correctness can be exposed.
+     */
+    private function normalize_choice_for_paper( array $choice, bool $is_edit ): array {
+        $normalized = array(
+            'id'   => (int) $choice['id'],
+            'text' => sanitize_text_field( $choice['choice_text'] ?? '' ),
+        );
+
+        if ( isset( $choice['position'] ) ) {
+            $normalized['sort_order'] = (int) $choice['position'];
+        }
+
+        if ( $is_edit ) {
+            $normalized['is_correct'] = ! empty( $choice['is_correct'] );
+        }
+
+        return $normalized;
     }
 
     /**
