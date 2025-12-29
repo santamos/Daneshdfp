@@ -139,10 +139,10 @@ class AttemptService {
             },
             $questions
         );
-        $choice_rows     = $this->choices->list_by_question_ids( $question_ids );
-        $selections      = $this->answers->list_answer_selections( $attempt_id );
-        $choice_map      = array();
-        $selected_by_qid = array();
+        $choice_rows   = $this->choices->list_by_question_ids( $question_ids );
+        $selections    = $this->answers->list_answer_selections( $attempt_id );
+        $choice_map    = array();
+        $selection_map = array();
 
         foreach ( $choice_rows as $choice ) {
             $question_id = (int) ( $choice['question_id'] ?? 0 );
@@ -153,16 +153,17 @@ class AttemptService {
 
             $choice_map[ $question_id ][] = $this->normalize_choice_for_paper( $choice, $is_edit );
         }
+foreach ( $selections as $selection ) {
+    $qid = (int) ( $selection['question_id'] ?? 0 );
+    if ( $qid <= 0 ) {
+        continue;
+    }
 
-        foreach ( $selections as $selection ) {
-            $qid = (int) ( $selection['question_id'] ?? 0 );
-            $cid = (int) ( $selection['choice_id'] ?? 0 );
+   $cid_raw = $selection['choice_id'] ?? ( $selection['selected_choice_id'] ?? null );
 
-            if ( $qid > 0 ) {
-                $selected_by_qid[ $qid ] = $cid > 0 ? $cid : null;
-            }
+    $selection_map[ $qid ] = is_null( $cid_raw ) ? null : (int) $cid_raw;
+}
 
-        }
 
         $remaining_seconds = $this->calculate_remaining_seconds( $attempt['expires_at'] ?? null, $now );
 
@@ -176,7 +177,7 @@ class AttemptService {
                 'remaining_seconds' => $remaining_seconds,
             ),
             'questions' => array_map(
-                function ( array $question ) use ( $choice_map, $selected_by_qid ): array {
+                function ( array $question ) use ( $choice_map, $selection_map ): array {
                     $question_id = (int) $question['id'];
 
                     return array(
@@ -184,7 +185,7 @@ class AttemptService {
                         'prompt'              => sanitize_textarea_field( $question['prompt'] ?? '' ),
                         'type'                => sanitize_text_field( $question['type'] ?? 'mcq' ),
                         'points'              => isset( $question['points'] ) ? (float) $question['points'] : 0.0,
-                        'selected_choice_id'  => $selected_by_qid[ $question_id ] ?? null,
+                        'selected_choice_id'  => $selection_map[ $question_id ] ?? null,
                         'choices'             => $choice_map[ $question_id ] ?? array(),
                     );
                 },
