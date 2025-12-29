@@ -157,6 +157,30 @@ class Routes {
 
         register_rest_route(
             'danesh/v1',
+            '/attempts/(?P<attempt_id>\\d+)/paper',
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_attempt_paper' ),
+                'permission_callback' => 'is_user_logged_in',
+                'args'                => array(
+                    'attempt_id' => array(
+                        'type'              => 'integer',
+                        'sanitize_callback' => 'absint',
+                        'required'          => true,
+                        'validate_callback' => array( $this, 'validate_non_negative_int' ),
+                    ),
+                    'context' => array(
+                        'type'              => 'string',
+                        'sanitize_callback' => 'sanitize_text_field',
+                        'enum'              => array( 'view', 'edit' ),
+                        'default'           => 'view',
+                    ),
+                ),
+            )
+        );
+
+        register_rest_route(
+            'danesh/v1',
             '/attempts/(?P<id>\\d+)/answers',
             array(
                 'methods'             => WP_REST_Server::CREATABLE,
@@ -330,6 +354,16 @@ class Routes {
     public function get_attempt( WP_REST_Request $request ) {
         $attempt_id = (int) $request->get_param( 'attempt_id' );
         $response   = $this->attempt_service->get_attempt( $attempt_id );
+
+        return $this->prepare_response( $response );
+    }
+
+    /**
+     * Get attempt paper.
+     */
+    public function get_attempt_paper( WP_REST_Request $request ) {
+        $attempt_id = (int) $request->get_param( 'attempt_id' );
+        $response   = $this->attempt_service->get_attempt_paper( $attempt_id, $request );
 
         return $this->prepare_response( $response );
     }

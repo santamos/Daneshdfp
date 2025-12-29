@@ -60,6 +60,37 @@ class ChoiceRepository {
     }
 
     /**
+     * List choices for multiple questions.
+     *
+     * @param array $question_ids Question IDs.
+     *
+     * @return array
+     */
+    public function list_by_question_ids( array $question_ids ): array {
+        global $wpdb;
+
+        $ids = array_filter(
+            array_map( 'absint', $question_ids ),
+            static function ( int $id ): bool {
+                return $id > 0;
+            }
+        );
+
+        if ( empty( $ids ) ) {
+            return array();
+        }
+
+        $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+        $table        = Tables::choices();
+        $query        = $wpdb->prepare(
+            "SELECT * FROM {$table} WHERE question_id IN ({$placeholders}) ORDER BY position ASC, id ASC",
+            $ids
+        );
+
+        return $wpdb->get_results( $query, ARRAY_A );
+    }
+
+    /**
      * Delete a choice.
      *
      * @param int $id Choice ID.
