@@ -11,6 +11,7 @@ use Danesh\OnlineExam\Services\AttemptService;
 use Danesh\OnlineExam\Services\ExamService;
 use WP_Error;
 use WP_REST_Request;
+use WP_REST_Response;
 use WP_REST_Server;
 use function absint;
 use function sanitize_text_field;
@@ -294,6 +295,16 @@ class Routes {
                 ),
             )
         );
+
+        register_rest_route(
+            'danesh/v1',
+            '/me',
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_me' ),
+                'permission_callback' => array( $this, 'check_student_permissions' ),
+            )
+        );
     }
 
     /**
@@ -416,13 +427,7 @@ class Routes {
         }
 
         $response = $this->attempt_service->list_exam_attempts( $exam_id, $user_id );
-        $rest_response = $this->prepare_response( $response );
-
-        if ( is_wp_error( $rest_response ) ) {
-            return $rest_response;
-        }
-
-        return $this->apply_no_cache_headers( $rest_response );
+        return $this->prepare_response( $response );
     }
 
     /**
@@ -463,13 +468,7 @@ class Routes {
         $response   = $this->attempt_service->get_attempt_paper( $attempt_id, $request );
 
         // prepare_response خودش WP_Error را همانطور برمی‌گرداند
-        $rest_response = $this->prepare_response( $response );
-
-        if ( is_wp_error( $rest_response ) ) {
-            return $rest_response;
-        }
-
-        return $this->apply_no_cache_headers( $rest_response );
+        return $this->prepare_response( $response );
     }
 
     /**
@@ -484,13 +483,7 @@ class Routes {
         }
 
         $response      = $this->attempt_service->get_active_attempt( $exam_id, $user_id );
-        $rest_response = $this->prepare_response( $response );
-
-        if ( is_wp_error( $rest_response ) ) {
-            return $rest_response;
-        }
-
-        return $this->apply_no_cache_headers( $rest_response );
+        return $this->prepare_response( $response );
     }
 
     /**
@@ -505,13 +498,7 @@ class Routes {
         }
 
         $response      = $this->attempt_service->get_attempt_eligibility( $exam_id, $user_id );
-        $rest_response = $this->prepare_response( $response );
-
-        if ( is_wp_error( $rest_response ) ) {
-            return $rest_response;
-        }
-
-        return $this->apply_no_cache_headers( $rest_response );
+        return $this->prepare_response( $response );
     }
 
     /**
@@ -568,20 +555,51 @@ class Routes {
     }
 
     /**
-     * Prepare response or pass errors through.
+     * Get current user info.
+     */
+    public function get_me( WP_REST_Request $request ) {
+        $user_id = get_current_user_id();
+
+        if ( ! $user_id ) {
+            return $this->prepare_response( new WP_Error( 'not_logged_in', 'You must be logged in.', array( 'status' => 401 ) ) );
+        }
+
+        $user = wp_get_current_user();
+
+        return $this->prepare_response(
+            array(
+                'user_id'           => (int) $user_id,
+                'roles'             => array_values( $user->roles ),
+                'can_manage_exams'  => current_user_can( 'danesh_manage_exams' ) || current_user_can( 'manage_options' ),
+            )
+        );
+    }
+
+    /**
+     * Prepare response with consistent structure and headers.
      *
      * @param mixed $response Response from service.
      * @param int   $status   HTTP status for success.
      */
-    private function prepare_response( $response, int $status = 200 ) {
+    private function prepare_response( $response, int $status = 200 ): WP_REST_Response {
         if ( is_wp_error( $response ) ) {
-            return $response;
+            $error_data   = $response->get_error_data();
+            $error_status = 400;
+
+            if ( is_array( $error_data ) && isset( $error_data['status'] ) ) {
+                $error_status = (int) $error_data['status'];
+            } elseif ( is_int( $error_data ) ) {
+                $error_status = $error_data;
+            }
+
+            $rest_response = rest_convert_error_to_response( $response );
+            $rest_response->set_status( $error_status );
+        } else {
+            $rest_response = rest_ensure_response( $response );
+            $rest_response->set_status( $status );
         }
 
-        $rest_response = rest_ensure_response( $response );
-        $rest_response->set_status( $status );
-
-        return $rest_response;
+        return $this->apply_no_cache_headers( $rest_response );
     }
 
     /**
@@ -589,7 +607,7 @@ class Routes {
      *
      * @param \WP_REST_Response $rest_response REST response.
      */
-    private function apply_no_cache_headers( $rest_response ) {
+    private function apply_no_cache_headers( WP_REST_Response $rest_response ): WP_REST_Response {
         foreach ( wp_get_nocache_headers() as $header => $value ) {
             $rest_response->header( $header, $value );
         }
