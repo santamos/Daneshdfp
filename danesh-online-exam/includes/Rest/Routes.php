@@ -362,11 +362,28 @@ class Routes {
      * Get attempt paper.
      */
     public function get_attempt_paper( WP_REST_Request $request ) {
-        $attempt_id = (int) $request->get_param( 'attempt_id' );
-        $response   = $this->attempt_service->get_attempt_paper( $attempt_id, $request );
+    $attempt_id = (int) $request->get_param( 'attempt_id' );
+    $response   = $this->attempt_service->get_attempt_paper( $attempt_id, $request );
 
-        return $this->prepare_response( $response );
+    // prepare_response خودش WP_Error را همانطور برمی‌گرداند
+    $rest_response = $this->prepare_response( $response );
+
+    if ( is_wp_error( $rest_response ) ) {
+        return $rest_response;
     }
+
+    // ضد کش کردن پاسخ برای جلوگیری از نشت بین کاربران
+    foreach ( wp_get_nocache_headers() as $header => $value ) {
+        $rest_response->header( $header, $value );
+    }
+
+    $rest_response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
+    $rest_response->header( 'Pragma', 'no-cache' );
+    $rest_response->header( 'Expires', '0' );
+    $rest_response->header( 'Vary', 'Authorization, Cookie' );
+
+    return $rest_response;
+}
 
     /**
      * Submit an attempt.
