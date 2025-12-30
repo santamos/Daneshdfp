@@ -347,7 +347,7 @@ if ( ! $attempt_id ) {
         $requested_user_id = $user_id ?? $current_user_id;
 
         if ( ! $this->is_manage_context() && $requested_user_id !== $current_user_id ) {
-            return new WP_Error( 'rest_forbidden', __( 'You cannot view other users\' attempts.', 'danesh-online-exam' ), array( 'status' => 403 ) );
+            return new WP_Error( 'attempt_forbidden', __( 'You cannot access this attempt.', 'danesh-online-exam' ), array( 'status' => 403 ) );
         }
 
         $now            = $this->get_current_timestamp();
@@ -367,6 +367,68 @@ if ( ! $attempt_id ) {
         $normalized['resumed'] = true;
 
         return $normalized;
+    }
+
+    /**
+     * Get eligibility/resume state for an exam attempt.
+     *
+     * @param int      $exam_id Exam ID.
+     * @param int|null $user_id Optional user ID (manage context only).
+     *
+     * @return array|WP_Error
+     */
+    public function get_attempt_eligibility( int $exam_id, ?int $user_id = null ) {
+        $exam = $this->exams->get( $exam_id );
+
+        if ( ! $exam ) {
+            return new WP_Error( 'exam_not_found', __( 'Exam not found.', 'danesh-online-exam' ), array( 'status' => 404 ) );
+        }
+
+        $current_user_id = get_current_user_id();
+
+        if ( ! $current_user_id ) {
+            return new WP_Error( 'not_logged_in', __( 'Authentication required.', 'danesh-online-exam' ), array( 'status' => 401 ) );
+        }
+
+        $manage_context     = $this->is_manage_context();
+        $requested_user_id  = $user_id ?? $current_user_id;
+
+        if ( ! $manage_context && 'published' !== $exam['status'] ) {
+            return new WP_Error(
+                'exam_not_published',
+                __( 'The exam is not available for attempts.', 'danesh-online-exam' ),
+                array( 'status' => 403 )
+            );
+        }
+
+        if ( ! $manage_context && $requested_user_id !== $current_user_id ) {
+            return new WP_Error( 'attempt_forbidden', __( 'You cannot access this attempt.', 'danesh-online-exam' ), array( 'status' => 403 ) );
+        }
+
+        $now            = $this->get_current_timestamp();
+        $active_attempt = $this->attempts->find_active_attempt( $exam_id, $requested_user_id );
+
+        if ( $active_attempt && $this->is_expired( $active_attempt['expires_at'] ?? null, $now ) ) {
+            $this->attempts->mark_expired( (int) $active_attempt['id'], $this->format_gmt_datetime( $now ) );
+            $active_attempt = null;
+        }
+
+        $response = array(
+            'exam_id'            => (int) $exam_id,
+            'user_id'            => (int) $requested_user_id,
+            'can_start'          => true,
+            'has_active_attempt' => false,
+            'active_attempt'     => null,
+            'action'             => 'start',
+        );
+
+        if ( $active_attempt ) {
+            $response['has_active_attempt'] = true;
+            $response['active_attempt']     = $this->normalize_attempt( $active_attempt, $now );
+            $response['action']             = 'resume';
+        }
+
+        return $response;
     }
 
     /**
