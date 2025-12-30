@@ -261,6 +261,69 @@ if ( ! $attempt_id ) {
     }
 
     /**
+     * List attempts for an exam.
+     *
+     * @param int      $exam_id Exam ID.
+     * @param int|null $user_id Optional user filter.
+     *
+     * @return array|WP_Error
+     */
+    public function list_exam_attempts( int $exam_id, ?int $user_id = null ) {
+        $exam = $this->exams->get( $exam_id );
+
+        if ( ! $exam ) {
+            return new WP_Error( 'exam_not_found', __( 'Exam not found.', 'danesh-online-exam' ), array( 'status' => 404 ) );
+        }
+
+        if ( ! $this->is_manage_context() ) {
+            $current_user_id = get_current_user_id();
+
+            if ( ! $current_user_id ) {
+                return new WP_Error( 'not_logged_in', __( 'Authentication required.', 'danesh-online-exam' ), array( 'status' => 401 ) );
+            }
+
+            $user_id = $current_user_id;
+        } elseif ( $user_id && $user_id < 0 ) {
+            $user_id = null;
+        }
+
+        $now      = $this->get_current_timestamp();
+        $attempts = array();
+
+        foreach ( $this->attempts->list_by_exam( $exam_id, $user_id ) as $attempt ) {
+            $attempt_id = (int) $attempt['id'];
+
+            if ( 'in_progress' === ( $attempt['status'] ?? '' ) && $this->is_expired( $attempt['expires_at'] ?? null, $now ) ) {
+                $finished_at = $this->format_gmt_datetime( $now );
+                $this->attempts->mark_expired( $attempt_id, $finished_at );
+
+                $attempt['status']      = 'expired';
+                $attempt['finished_at'] = $finished_at;
+            }
+
+            $normalized                   = $this->normalize_attempt( $attempt, $now );
+            $normalized['answered_count'] = $this->answers->count_answered( $attempt_id );
+
+            if ( 'expired' === $normalized['status'] ) {
+                $normalized['remaining_seconds'] = 0;
+            }
+
+            $attempts[] = $normalized;
+        }
+
+        $response = array(
+            'exam_id'  => (int) $exam_id,
+            'attempts' => $attempts,
+        );
+
+        if ( null !== $user_id ) {
+            $response['user_id'] = (int) $user_id;
+        }
+
+        return $response;
+    }
+
+    /**
      * Save an answer for an attempt.
      *
      * @param int $attempt_id  Attempt ID.
