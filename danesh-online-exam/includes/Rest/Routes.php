@@ -160,6 +160,30 @@ class Routes {
 
         register_rest_route(
             'danesh/v1',
+            '/exams/(?P<exam_id>\\d+)/attempts/active',
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_active_exam_attempt' ),
+                'permission_callback' => 'is_user_logged_in',
+                'args'                => array(
+                    'exam_id' => array(
+                        'type'              => 'integer',
+                        'sanitize_callback' => 'absint',
+                        'required'          => true,
+                        'validate_callback' => array( $this, 'validate_non_negative_int' ),
+                    ),
+                    'user_id' => array(
+                        'type'              => 'integer',
+                        'sanitize_callback' => 'absint',
+                        'required'          => false,
+                        'validate_callback' => array( $this, 'validate_non_negative_int' ),
+                    ),
+                ),
+            )
+        );
+
+        register_rest_route(
+            'danesh/v1',
             '/attempts/(?P<attempt_id>\\d+)',
             array(
                 'methods'             => WP_REST_Server::READABLE,
@@ -415,6 +439,27 @@ class Routes {
         $response   = $this->attempt_service->get_attempt_paper( $attempt_id, $request );
 
         // prepare_response خودش WP_Error را همانطور برمی‌گرداند
+        $rest_response = $this->prepare_response( $response );
+
+        if ( is_wp_error( $rest_response ) ) {
+            return $rest_response;
+        }
+
+        return $this->apply_no_cache_headers( $rest_response );
+    }
+
+    /**
+     * Get the active attempt for the current (or specified) user.
+     */
+    public function get_active_exam_attempt( WP_REST_Request $request ) {
+        $exam_id = (int) $request->get_param( 'exam_id' );
+        $user_id = $request->get_param( 'user_id' );
+
+        if ( null !== $user_id ) {
+            $user_id = absint( $user_id );
+        }
+
+        $response      = $this->attempt_service->get_active_attempt( $exam_id, $user_id );
         $rest_response = $this->prepare_response( $response );
 
         if ( is_wp_error( $rest_response ) ) {

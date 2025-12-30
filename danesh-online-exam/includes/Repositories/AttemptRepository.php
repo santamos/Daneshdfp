@@ -170,6 +170,18 @@ class AttemptRepository {
     }
 
     /**
+     * Get the latest active attempt for a user and exam.
+     *
+     * @param int $exam_id Exam ID.
+     * @param int $user_id User ID.
+     *
+     * @return array|null
+     */
+    public function find_active_by_exam_and_user( int $exam_id, int $user_id ): ?array {
+        return $this->find_active_attempt( $exam_id, $user_id );
+    }
+
+    /**
      * Mark an attempt as expired.
      *
      * @param int    $attempt_id Attempt ID.
