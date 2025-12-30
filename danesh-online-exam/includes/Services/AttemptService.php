@@ -281,16 +281,26 @@ if ( ! $attempt_id ) {
             return $access;
         }
 
-        if ( 'in_progress' !== ( $attempt['status'] ?? '' ) ) {
-            return new WP_Error( 'attempt_not_in_progress', __( 'Attempt is not in progress.', 'danesh-online-exam' ), array( 'status' => 400 ) );
+        $now = $this->get_current_timestamp();
+        $status = $attempt['status'] ?? '';
+
+        if ( 'submitted' === $status ) {
+            return new WP_Error( 'attempt_already_submitted', __( 'Attempt has already been submitted.', 'danesh-online-exam' ), array( 'status' => 400 ) );
         }
 
-        $now = $this->get_current_timestamp();
+        if ( 'expired' === $status ) {
+            return new WP_Error( 'attempt_expired', __( 'The attempt has expired.', 'danesh-online-exam' ), array( 'status' => 403 ) );
+        }
 
-        if ( $this->is_expired( $attempt['expires_at'] ?? null, $now ) ) {
-            $this->attempts->mark_expired( $attempt_id, $this->format_gmt_datetime( $now ) );
+        if ( 'in_progress' === $status && $this->is_expired( $attempt['expires_at'] ?? null, $now ) ) {
+            $finished_at = $this->format_gmt_datetime( $now );
+            $this->attempts->mark_expired( $attempt_id, $finished_at );
 
-            return new WP_Error( 'attempt_expired', __( 'Attempt expired', 'danesh-online-exam' ), array( 'status' => 403 ) );
+            return new WP_Error( 'attempt_expired', __( 'The attempt has expired.', 'danesh-online-exam' ), array( 'status' => 403 ) );
+        }
+
+        if ( 'in_progress' !== $status ) {
+            return new WP_Error( 'attempt_not_in_progress', __( 'Attempt is not in progress.', 'danesh-online-exam' ), array( 'status' => 400 ) );
         }
 
         $answers = $this->normalize_answers_payload( $payload );
