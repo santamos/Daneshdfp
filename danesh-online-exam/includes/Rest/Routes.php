@@ -121,17 +121,38 @@ class Routes {
 
         register_rest_route(
             'danesh/v1',
-            '/exams/(?P<id>\\d+)/attempts',
+            '/exams/(?P<exam_id>\\d+)/attempts',
             array(
-                'methods'             => WP_REST_Server::CREATABLE,
-                'callback'            => array( $this, 'start_attempt' ),
-                'permission_callback' => array( $this, 'check_student_permissions' ),
-                'args'                => array(
-                    'id' => array(
-                        'type'              => 'integer',
-                        'sanitize_callback' => 'absint',
-                        'required'          => true,
-                        'validate_callback' => array( $this, 'validate_non_negative_int' ),
+                array(
+                    'methods'             => WP_REST_Server::READABLE,
+                    'callback'            => array( $this, 'get_exam_attempts' ),
+                    'permission_callback' => 'is_user_logged_in',
+                    'args'                => array(
+                        'exam_id' => array(
+                            'type'              => 'integer',
+                            'sanitize_callback' => 'absint',
+                            'required'          => true,
+                            'validate_callback' => array( $this, 'validate_non_negative_int' ),
+                        ),
+                        'user_id' => array(
+                            'type'              => 'integer',
+                            'sanitize_callback' => 'absint',
+                            'required'          => false,
+                            'validate_callback' => array( $this, 'validate_non_negative_int' ),
+                        ),
+                    ),
+                ),
+                array(
+                    'methods'             => WP_REST_Server::CREATABLE,
+                    'callback'            => array( $this, 'start_attempt' ),
+                    'permission_callback' => array( $this, 'check_student_permissions' ),
+                    'args'                => array(
+                        'exam_id' => array(
+                            'type'              => 'integer',
+                            'sanitize_callback' => 'absint',
+                            'required'          => true,
+                            'validate_callback' => array( $this, 'validate_non_negative_int' ),
+                        ),
                     ),
                 ),
             )
@@ -316,7 +337,7 @@ class Routes {
      * Start an attempt.
      */
     public function start_attempt( WP_REST_Request $request ) {
-        $exam_id  = (int) $request->get_param( 'id' );
+        $exam_id  = (int) ( $request->get_param( 'exam_id' ) ?? $request->get_param( 'id' ) );
         $response = $this->attempt_service->start_attempt( $exam_id );
 
         $status = 201;
@@ -326,6 +347,34 @@ class Routes {
         }
 
         return $this->prepare_response( $response, $status );
+    }
+
+    /**
+     * List attempts for an exam.
+     */
+    public function get_exam_attempts( WP_REST_Request $request ) {
+        $exam_id    = (int) ( $request->get_param( 'exam_id' ) ?? $request->get_param( 'id' ) );
+        $can_manage = current_user_can( 'danesh_manage_exams' ) || current_user_can( 'manage_options' );
+        $user_id    = null;
+
+        if ( $can_manage ) {
+            $user_param = $request->get_param( 'user_id' );
+
+            if ( null !== $user_param ) {
+                $user_id = absint( $user_param );
+            }
+        } else {
+            $user_id = get_current_user_id();
+        }
+
+        $response = $this->attempt_service->list_exam_attempts( $exam_id, $user_id );
+        $rest_response = $this->prepare_response( $response );
+
+        if ( is_wp_error( $rest_response ) ) {
+            return $rest_response;
+        }
+
+        return $this->apply_no_cache_headers( $rest_response );
     }
 
     /**
@@ -362,28 +411,18 @@ class Routes {
      * Get attempt paper.
      */
     public function get_attempt_paper( WP_REST_Request $request ) {
-    $attempt_id = (int) $request->get_param( 'attempt_id' );
-    $response   = $this->attempt_service->get_attempt_paper( $attempt_id, $request );
+        $attempt_id = (int) $request->get_param( 'attempt_id' );
+        $response   = $this->attempt_service->get_attempt_paper( $attempt_id, $request );
 
-    // prepare_response خودش WP_Error را همانطور برمی‌گرداند
-    $rest_response = $this->prepare_response( $response );
+        // prepare_response خودش WP_Error را همانطور برمی‌گرداند
+        $rest_response = $this->prepare_response( $response );
 
-    if ( is_wp_error( $rest_response ) ) {
-        return $rest_response;
+        if ( is_wp_error( $rest_response ) ) {
+            return $rest_response;
+        }
+
+        return $this->apply_no_cache_headers( $rest_response );
     }
-
-    // ضد کش کردن پاسخ برای جلوگیری از نشت بین کاربران
-    foreach ( wp_get_nocache_headers() as $header => $value ) {
-        $rest_response->header( $header, $value );
-    }
-
-    $rest_response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
-    $rest_response->header( 'Pragma', 'no-cache' );
-    $rest_response->header( 'Expires', '0' );
-    $rest_response->header( 'Vary', 'Authorization, Cookie' );
-
-    return $rest_response;
-}
 
     /**
      * Submit an attempt.
@@ -451,6 +490,24 @@ class Routes {
 
         $rest_response = rest_ensure_response( $response );
         $rest_response->set_status( $status );
+
+        return $rest_response;
+    }
+
+    /**
+     * Apply no-cache headers to a REST response.
+     *
+     * @param \WP_REST_Response $rest_response REST response.
+     */
+    private function apply_no_cache_headers( $rest_response ) {
+        foreach ( wp_get_nocache_headers() as $header => $value ) {
+            $rest_response->header( $header, $value );
+        }
+
+        $rest_response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
+        $rest_response->header( 'Pragma', 'no-cache' );
+        $rest_response->header( 'Expires', '0' );
+        $rest_response->header( 'Vary', 'Authorization, Cookie' );
 
         return $rest_response;
     }

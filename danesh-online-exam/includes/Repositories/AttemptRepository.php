@@ -117,6 +117,35 @@ class AttemptRepository {
     }
 
     /**
+     * List attempts for an exam (optionally filtered by user).
+     *
+     * @param int      $exam_id Exam ID.
+     * @param int|null $user_id User ID to filter.
+     *
+     * @return array
+     */
+    public function list_by_exam( int $exam_id, ?int $user_id = null ): array {
+        global $wpdb;
+
+        $table = Tables::attempts();
+
+        if ( $user_id ) {
+            $query = $wpdb->prepare(
+                "SELECT * FROM {$table} WHERE exam_id = %d AND user_id = %d ORDER BY started_at DESC, id DESC",
+                $exam_id,
+                $user_id
+            );
+        } else {
+            $query = $wpdb->prepare(
+                "SELECT * FROM {$table} WHERE exam_id = %d ORDER BY started_at DESC, id DESC",
+                $exam_id
+            );
+        }
+
+        return $wpdb->get_results( $query, ARRAY_A );
+    }
+
+    /**
      * Get the latest in-progress attempt for a user and exam.
      *
      * @param int $exam_id Exam ID.
