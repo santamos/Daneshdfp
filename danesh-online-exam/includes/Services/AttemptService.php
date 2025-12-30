@@ -324,6 +324,52 @@ if ( ! $attempt_id ) {
     }
 
     /**
+     * Get the active attempt for an exam and user.
+     *
+     * @param int      $exam_id Exam ID.
+     * @param int|null $user_id User ID (defaults to current user).
+     *
+     * @return array|WP_Error
+     */
+    public function get_active_attempt( int $exam_id, ?int $user_id = null ) {
+        $exam = $this->exams->get( $exam_id );
+
+        if ( ! $exam ) {
+            return new WP_Error( 'exam_not_found', __( 'Exam not found.', 'danesh-online-exam' ), array( 'status' => 404 ) );
+        }
+
+        $current_user_id = get_current_user_id();
+
+        if ( ! $current_user_id ) {
+            return new WP_Error( 'not_logged_in', __( 'Authentication required.', 'danesh-online-exam' ), array( 'status' => 401 ) );
+        }
+
+        $requested_user_id = $user_id ?? $current_user_id;
+
+        if ( ! $this->is_manage_context() && $requested_user_id !== $current_user_id ) {
+            return new WP_Error( 'rest_forbidden', __( 'You cannot view other users\' attempts.', 'danesh-online-exam' ), array( 'status' => 403 ) );
+        }
+
+        $now            = $this->get_current_timestamp();
+        $active_attempt = $this->attempts->find_active_by_exam_and_user( $exam_id, $requested_user_id );
+
+        if ( ! $active_attempt ) {
+            return new WP_Error( 'no_active_attempt', __( 'No active attempt found.', 'danesh-online-exam' ), array( 'status' => 404 ) );
+        }
+
+        if ( $this->is_expired( $active_attempt['expires_at'] ?? null, $now ) ) {
+            $this->attempts->mark_expired( (int) $active_attempt['id'], $this->format_gmt_datetime( $now ) );
+
+            return new WP_Error( 'no_active_attempt', __( 'No active attempt found.', 'danesh-online-exam' ), array( 'status' => 404 ) );
+        }
+
+        $normalized            = $this->normalize_attempt( $active_attempt, $now );
+        $normalized['resumed'] = true;
+
+        return $normalized;
+    }
+
+    /**
      * Save an answer for an attempt.
      *
      * @param int $attempt_id  Attempt ID.
