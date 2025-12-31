@@ -610,13 +610,23 @@ class Routes {
             $rest_response->set_status( $status );
         }
 
-        if ( $request instanceof WP_REST_Request ) {
-            if ( $this->wants_envelope( $request ) ) {
-                $rest_response = $this->envelope_response( $rest_response, $is_error );
+        $rest_response = $this->apply_no_cache_headers( $rest_response );
+
+        if ( $request instanceof WP_REST_Request && $this->wants_envelope( $request ) ) {
+            try {
+                return $this->envelope_response( $rest_response, $is_error );
+            } catch ( \Throwable $e ) {
+                if ( function_exists( 'error_log' ) ) {
+                    error_log( '[danesh-online-exam] Envelope failed: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() );
+                }
+
+                $rest_response->header( 'X-Danesh-Envelope-Fallback', '1' );
+
+                return $rest_response;
             }
         }
 
-        return $this->apply_no_cache_headers( $rest_response );
+        return $rest_response;
     }
 
     /**
