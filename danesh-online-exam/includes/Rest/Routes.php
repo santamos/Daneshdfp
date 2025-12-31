@@ -445,6 +445,15 @@ class Routes {
             );
         }
 
+        if ( is_array( $payload ) && isset( $payload['answers'] ) && is_array( $payload['answers'] ) ) {
+            foreach ( $payload['answers'] as &$answer ) {
+                if ( is_array( $answer ) && ! isset( $answer['choice_id'] ) && isset( $answer['selected_choice_id'] ) ) {
+                    $answer['choice_id'] = $answer['selected_choice_id'];
+                }
+            }
+            unset( $answer );
+        }
+
         $response = $this->attempt_service->save_answers( $attempt_id, is_array( $payload ) ? $payload : array() );
 
         return $this->prepare_response( $response );
@@ -744,6 +753,7 @@ class Routes {
                 'required' => false,
                 'items' => array(
                     'type'       => 'object',
+                    'required'   => array( 'question_id' ),
                     'properties' => array(
                         'question_id' => array(
                             'type'              => 'integer',
@@ -754,7 +764,13 @@ class Routes {
                         'choice_id'   => array(
                             'type'              => 'integer',
                             'sanitize_callback' => 'absint',
-                            'required'          => true,
+                            'required'          => false,
+                            'validate_callback' => array( $this, 'validate_non_negative_int' ),
+                        ),
+                        'selected_choice_id'   => array(
+                            'type'              => 'integer',
+                            'sanitize_callback' => 'absint',
+                            'required'          => false,
                             'validate_callback' => array( $this, 'validate_non_negative_int' ),
                         ),
                     ),
