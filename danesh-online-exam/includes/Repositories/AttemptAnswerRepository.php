@@ -122,4 +122,28 @@ class AttemptAnswerRepository {
 
         return (int) $wpdb->get_var( $query );
     }
+
+    /**
+     * Delete an answer for an attempt question.
+     *
+     * @param int $attempt_id  Attempt ID.
+     * @param int $question_id Question ID.
+     *
+     * @return bool
+     */
+    public function delete_answer( int $attempt_id, int $question_id ): bool {
+        global $wpdb;
+
+        $table   = Tables::attempt_answers();
+        $deleted = $wpdb->delete(
+            $table,
+            array(
+                'attempt_id'  => $attempt_id,
+                'question_id' => $question_id,
+            ),
+            array( '%d', '%d' )
+        );
+
+        return false !== $deleted;
+    }
 }

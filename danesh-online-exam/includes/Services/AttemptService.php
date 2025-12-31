@@ -483,7 +483,7 @@ if ( ! $attempt_id ) {
         }
 
         $answers     = $this->dedupe_answers_by_question( $answers );
-        $saved_count = count( $answers );
+        $saved_count = 0;
 
         foreach ( $answers as $answer ) {
             $question_id = (int) $answer['question_id'];
@@ -499,19 +499,27 @@ if ( ! $attempt_id ) {
                 return new WP_Error( 'question_mismatch', __( 'Question does not belong to this exam.', 'danesh-online-exam' ), array( 'status' => 400 ) );
             }
 
-            if ( ! is_null( $choice_id ) ) {
+            if ( is_null( $choice_id ) ) {
+                $deleted = $this->answers->delete_answer( $attempt_id, $question_id );
+
+                if ( false === $deleted ) {
+                    return new WP_Error( 'answer_delete_failed', __( 'Unable to clear answer.', 'danesh-online-exam' ), array( 'status' => 500 ) );
+                }
+            } else {
                 $choice = $this->choices->get( (int) $choice_id );
 
                 if ( ! $choice || (int) $choice['question_id'] !== $question_id ) {
                     return new WP_Error( 'choice_not_found', __( 'Choice does not belong to this question.', 'danesh-online-exam' ), array( 'status' => 400 ) );
                 }
+
+                $stored = $this->answers->upsert_answer( $attempt_id, $question_id, $choice_id );
+
+                if ( ! $stored ) {
+                    return new WP_Error( 'answer_save_failed', __( 'Unable to save answer.', 'danesh-online-exam' ), array( 'status' => 500 ) );
+                }
             }
 
-            $stored = $this->answers->upsert_answer( $attempt_id, $question_id, $choice_id );
-
-            if ( ! $stored ) {
-                return new WP_Error( 'answer_save_failed', __( 'Unable to save answer.', 'danesh-online-exam' ), array( 'status' => 500 ) );
-            }
+            $saved_count++;
         }
 
         $answered_count    = $this->answers->count_answered( $attempt_id );
@@ -552,8 +560,15 @@ if ( ! $attempt_id ) {
         $normalized = array();
 
         foreach ( $payload['answers'] as $index => $item ) {
-            if ( ! is_array( $item ) || ! array_key_exists( 'question_id', $item ) || ! array_key_exists( 'choice_id', $item ) ) {
-                return new WP_Error( 'invalid_answer', __( 'Each answer must include question_id and choice_id.', 'danesh-online-exam' ), array( 'status' => 400 ) );
+            if ( ! is_array( $item ) || ! array_key_exists( 'question_id', $item ) ) {
+                return new WP_Error( 'invalid_answer', __( 'Each answer must include question_id.', 'danesh-online-exam' ), array( 'status' => 400 ) );
+            }
+
+            $has_choice_id  = array_key_exists( 'choice_id', $item );
+            $has_selected   = array_key_exists( 'selected_choice_id', $item );
+
+            if ( ! $has_choice_id && ! $has_selected ) {
+                return new WP_Error( 'rest_invalid_param', __( 'Each answer must include choice_id or selected_choice_id.', 'danesh-online-exam' ), array( 'status' => 400 ) );
             }
 
             if ( ! is_numeric( $item['question_id'] ) ) {
@@ -561,22 +576,24 @@ if ( ! $attempt_id ) {
             }
 
             $question_id = (int) $item['question_id'];
-            $choice_id   = $item['choice_id'];
+            $choice_raw  = $has_choice_id ? $item['choice_id'] : $item['selected_choice_id'];
 
             if ( $question_id <= 0 ) {
                 return new WP_Error( 'invalid_answer', __( 'Question ID must be positive.', 'danesh-online-exam' ), array( 'status' => 400 ) );
             }
 
-            if ( ! is_null( $choice_id ) ) {
-                if ( ! is_numeric( $choice_id ) ) {
+            if ( ! is_null( $choice_raw ) ) {
+                if ( ! is_numeric( $choice_raw ) ) {
                     return new WP_Error( 'invalid_answer', __( 'Choice ID must be numeric or null.', 'danesh-online-exam' ), array( 'status' => 400 ) );
                 }
 
-                $choice_id = (int) $choice_id;
+                $choice_id = (int) $choice_raw;
 
                 if ( $choice_id <= 0 ) {
                     return new WP_Error( 'invalid_answer', __( 'Choice ID must be positive when provided.', 'danesh-online-exam' ), array( 'status' => 400 ) );
                 }
+            } else {
+                $choice_id = null;
             }
 
             $normalized[] = array(
