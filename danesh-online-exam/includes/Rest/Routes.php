@@ -318,7 +318,7 @@ class Routes {
         );
         $response = $this->service->create_exam( $payload );
 
-        return $this->prepare_response( $response, 201 );
+        return $this->prepare_response( $response, 201, $request );
     }
 
     /**
@@ -328,7 +328,7 @@ class Routes {
         $exam_id  = (int) $request->get_param( 'id' );
         $response = $this->service->get_exam( $exam_id );
 
-        return $this->prepare_response( $response );
+        return $this->prepare_response( $response, 200, $request );
     }
 
     /**
@@ -338,7 +338,7 @@ class Routes {
         $exam_id  = (int) $request->get_param( 'id' );
         $response = $this->service->list_questions( $exam_id );
 
-        return $this->prepare_response( $response );
+        return $this->prepare_response( $response, 200, $request );
     }
 
     /**
@@ -354,7 +354,7 @@ class Routes {
         );
         $response = $this->service->create_question( $exam_id, $payload );
 
-        return $this->prepare_response( $response, 201 );
+        return $this->prepare_response( $response, 201, $request );
     }
 
     /**
@@ -368,13 +368,13 @@ class Routes {
             $permission = $this->check_manage_permissions();
 
             if ( is_wp_error( $permission ) ) {
-                return $permission;
+                return $this->prepare_response( $permission, 403, $request );
             }
         }
 
         $response = $this->service->list_choices( $question_id );
 
-        return $this->prepare_response( $response );
+        return $this->prepare_response( $response, 200, $request );
     }
 
     /**
@@ -389,7 +389,7 @@ class Routes {
         );
         $response    = $this->service->create_choice( $question_id, $payload );
 
-        return $this->prepare_response( $response, 201 );
+        return $this->prepare_response( $response, 201, $request );
     }
 
     /**
@@ -405,7 +405,7 @@ class Routes {
             $status = 200;
         }
 
-        return $this->prepare_response( $response, $status );
+        return $this->prepare_response( $response, $status, $request );
     }
 
     /**
@@ -427,7 +427,7 @@ class Routes {
         }
 
         $response = $this->attempt_service->list_exam_attempts( $exam_id, $user_id );
-        return $this->prepare_response( $response );
+        return $this->prepare_response( $response, 200, $request );
     }
 
     /**
@@ -456,7 +456,7 @@ class Routes {
 
         $response = $this->attempt_service->save_answers( $attempt_id, is_array( $payload ) ? $payload : array() );
 
-        return $this->prepare_response( $response );
+        return $this->prepare_response( $response, 200, $request );
     }
 
     /**
@@ -466,7 +466,7 @@ class Routes {
         $attempt_id = (int) $request->get_param( 'attempt_id' );
         $response   = $this->attempt_service->get_attempt( $attempt_id );
 
-        return $this->prepare_response( $response );
+        return $this->prepare_response( $response, 200, $request );
     }
 
     /**
@@ -477,7 +477,7 @@ class Routes {
         $response   = $this->attempt_service->get_attempt_paper( $attempt_id, $request );
 
         // prepare_response خودش WP_Error را همانطور برمی‌گرداند
-        return $this->prepare_response( $response );
+        return $this->prepare_response( $response, 200, $request );
     }
 
     /**
@@ -492,7 +492,7 @@ class Routes {
         }
 
         $response      = $this->attempt_service->get_active_attempt( $exam_id, $user_id );
-        return $this->prepare_response( $response );
+        return $this->prepare_response( $response, 200, $request );
     }
 
     /**
@@ -507,7 +507,7 @@ class Routes {
         }
 
         $response      = $this->attempt_service->get_attempt_eligibility( $exam_id, $user_id );
-        return $this->prepare_response( $response );
+        return $this->prepare_response( $response, 200, $request );
     }
 
     /**
@@ -517,7 +517,7 @@ class Routes {
         $attempt_id = (int) $request->get_param( 'id' );
         $response   = $this->attempt_service->submit_attempt( $attempt_id );
 
-        return $this->prepare_response( $response );
+        return $this->prepare_response( $response, 200, $request );
     }
 
     /**
@@ -527,7 +527,7 @@ class Routes {
         $attempt_id = (int) $request->get_param( 'id' );
         $response   = $this->attempt_service->get_attempt_report( $attempt_id );
 
-        return $this->prepare_response( $response );
+        return $this->prepare_response( $response, 200, $request );
     }
 
     /**
@@ -570,7 +570,7 @@ class Routes {
         $user_id = get_current_user_id();
 
         if ( ! $user_id ) {
-            return $this->prepare_response( new WP_Error( 'not_logged_in', 'You must be logged in.', array( 'status' => 401 ) ) );
+            return $this->prepare_response( new WP_Error( 'not_logged_in', 'You must be logged in.', array( 'status' => 401 ) ), 401, $request );
         }
 
         $user = wp_get_current_user();
@@ -580,7 +580,9 @@ class Routes {
                 'user_id'           => (int) $user_id,
                 'roles'             => array_values( $user->roles ),
                 'can_manage_exams'  => current_user_can( 'danesh_manage_exams' ) || current_user_can( 'manage_options' ),
-            )
+            ),
+            200,
+            $request
         );
     }
 
@@ -590,15 +592,15 @@ class Routes {
      * @param mixed $response Response from service.
      * @param int   $status   HTTP status for success.
      */
-    private function prepare_response( $response, int $status = 200 ): WP_REST_Response {
-        if ( is_wp_error( $response ) ) {
+    private function prepare_response( $response, int $status = 200, ?WP_REST_Request $request = null ): WP_REST_Response {
+        $is_error = is_wp_error( $response );
+
+        if ( $is_error ) {
             $error_data   = $response->get_error_data();
             $error_status = 400;
 
-            if ( is_array( $error_data ) && isset( $error_data['status'] ) ) {
+            if ( is_array( $error_data ) && isset( $error_data['status'] ) && is_int( $error_data['status'] ) ) {
                 $error_status = (int) $error_data['status'];
-            } elseif ( is_int( $error_data ) ) {
-                $error_status = $error_data;
             }
 
             $rest_response = rest_convert_error_to_response( $response );
@@ -608,7 +610,63 @@ class Routes {
             $rest_response->set_status( $status );
         }
 
+        if ( $request instanceof WP_REST_Request && $this->wants_envelope( $request ) ) {
+            $rest_response = $this->envelope_response( $rest_response, $is_error );
+        }
+
         return $this->apply_no_cache_headers( $rest_response );
+    }
+
+    /**
+     * Check whether the request opted into the response envelope.
+     */
+    private function wants_envelope( WP_REST_Request $request ): bool {
+        $param = $request->get_param( 'danesh_envelope' );
+
+        if ( null !== $param ) {
+            return (bool) rest_sanitize_boolean( $param );
+        }
+
+        $header = $request->get_header( 'X-Danesh-Envelope' );
+
+        if ( null === $header ) {
+            return false;
+        }
+
+        $normalized = strtolower( trim( (string) $header ) );
+
+        return in_array( $normalized, array( '1', 'true', 'yes', 'on' ), true );
+    }
+
+    /**
+     * Wrap the response in an envelope structure without altering status or headers.
+     */
+    private function envelope_response( WP_REST_Response $rest_response, bool $is_error ): WP_REST_Response {
+        $status  = $rest_response->get_status();
+        $data    = $rest_response->get_data();
+        $payload = array(
+            'success' => ! $is_error,
+            'meta'    => array( 'status' => $status ),
+        );
+
+        if ( $is_error ) {
+            $payload['error'] = array(
+                'code'    => ( is_array( $data ) && isset( $data['code'] ) ) ? $data['code'] : 'unknown_error',
+                'message' => ( is_array( $data ) && isset( $data['message'] ) ) ? $data['message'] : '',
+                'data'    => ( is_array( $data ) && array_key_exists( 'data', $data ) ) ? $data['data'] : null,
+            );
+        } else {
+            $payload['data'] = $data;
+        }
+
+        $enveloped_response = new WP_REST_Response( $payload, $status );
+        $enveloped_response->set_links( $rest_response->get_links() );
+
+        foreach ( $rest_response->get_headers() as $header => $value ) {
+            $enveloped_response->header( $header, $value );
+        }
+
+        return $enveloped_response;
     }
 
     /**
