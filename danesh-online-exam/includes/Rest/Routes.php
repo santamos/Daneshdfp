@@ -610,8 +610,10 @@ class Routes {
             $rest_response->set_status( $status );
         }
 
-        if ( $request instanceof WP_REST_Request && $this->wants_envelope( $request ) ) {
-            $rest_response = $this->envelope_response( $rest_response, $is_error );
+        if ( $request instanceof WP_REST_Request ) {
+            if ( $this->wants_envelope( $request ) ) {
+                $rest_response = $this->envelope_response( $rest_response, $is_error );
+            }
         }
 
         return $this->apply_no_cache_headers( $rest_response );
