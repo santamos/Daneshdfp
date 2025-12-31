@@ -19,25 +19,36 @@ class AttemptAnswerRepository {
      *
      * @param int      $attempt_id  Attempt ID.
      * @param int      $question_id Question ID.
-     * @param int      $choice_id   Choice ID.
+     * @param int|null $choice_id   Choice ID.
      *
      * @return bool
      */
-    public function upsert_answer( int $attempt_id, int $question_id, int $choice_id ): bool {
+    public function upsert_answer( int $attempt_id, int $question_id, ?int $choice_id ): bool {
         global $wpdb;
 
-        $table = Tables::attempt_answers();
-        $data  = array(
-            'attempt_id'  => absint( $attempt_id ),
-            'question_id' => absint( $question_id ),
-            'choice_id'   => absint( $choice_id ),
-            'is_correct'  => 0,
-            'answered_at' => current_time( 'mysql' ),
-        );
+        $table       = Tables::attempt_answers();
+        $answered_at = current_time( 'mysql' );
 
-        $formats = array( '%d', '%d', '%d', '%d', '%s' );
+        if ( is_null( $choice_id ) ) {
+            $query = $wpdb->prepare(
+                "REPLACE INTO {$table} (attempt_id, question_id, choice_id, is_correct, answered_at) VALUES (%d, %d, NULL, %d, %s)",
+                absint( $attempt_id ),
+                absint( $question_id ),
+                0,
+                $answered_at
+            );
+        } else {
+            $query = $wpdb->prepare(
+                "REPLACE INTO {$table} (attempt_id, question_id, choice_id, is_correct, answered_at) VALUES (%d, %d, %d, %d, %s)",
+                absint( $attempt_id ),
+                absint( $question_id ),
+                absint( $choice_id ),
+                0,
+                $answered_at
+            );
+        }
 
-        $replaced = $wpdb->replace( $table, $data, $formats );
+        $replaced = $wpdb->query( $query );
 
         return false !== $replaced;
     }

@@ -77,9 +77,11 @@ class AttemptService {
         $normalized['answered_count'] = $this->answers->count_answered( $attempt_id );
         $normalized['answers']        = array_map(
             static function ( array $answer ): array {
+                $choice_id = $answer['choice_id'] ?? null;
+
                 return array(
                     'question_id' => (int) $answer['question_id'],
-                    'choice_id'   => (int) $answer['choice_id'],
+                    'choice_id'   => is_null( $choice_id ) ? null : (int) $choice_id,
                 );
             },
             $this->answers->list_answer_selections( $attempt_id )
@@ -480,11 +482,12 @@ if ( ! $attempt_id ) {
             return $answers;
         }
 
-        $saved_count = 0;
+        $answers     = $this->dedupe_answers_by_question( $answers );
+        $saved_count = count( $answers );
 
         foreach ( $answers as $answer ) {
             $question_id = (int) $answer['question_id'];
-            $choice_id   = (int) $answer['choice_id'];
+            $choice_id   = $answer['choice_id'];
 
             $question = $this->questions->get( $question_id );
 
@@ -496,10 +499,12 @@ if ( ! $attempt_id ) {
                 return new WP_Error( 'question_mismatch', __( 'Question does not belong to this exam.', 'danesh-online-exam' ), array( 'status' => 400 ) );
             }
 
-            $choice = $this->choices->get( $choice_id );
+            if ( ! is_null( $choice_id ) ) {
+                $choice = $this->choices->get( (int) $choice_id );
 
-            if ( ! $choice || (int) $choice['question_id'] !== $question_id ) {
-                return new WP_Error( 'choice_not_found', __( 'Choice does not belong to this question.', 'danesh-online-exam' ), array( 'status' => 400 ) );
+                if ( ! $choice || (int) $choice['question_id'] !== $question_id ) {
+                    return new WP_Error( 'choice_not_found', __( 'Choice does not belong to this question.', 'danesh-online-exam' ), array( 'status' => 400 ) );
+                }
             }
 
             $stored = $this->answers->upsert_answer( $attempt_id, $question_id, $choice_id );
@@ -507,12 +512,11 @@ if ( ! $attempt_id ) {
             if ( ! $stored ) {
                 return new WP_Error( 'answer_save_failed', __( 'Unable to save answer.', 'danesh-online-exam' ), array( 'status' => 500 ) );
             }
-
-            ++$saved_count;
         }
 
         $answered_count    = $this->answers->count_answered( $attempt_id );
         $remaining_seconds = $this->calculate_remaining_seconds( $attempt['expires_at'] ?? null, $now );
+        $stored_answers    = $this->answers->list_answer_selections( $attempt_id );
 
         return array(
             'attempt_id'  => (int) $attempt_id,
@@ -521,12 +525,14 @@ if ( ! $attempt_id ) {
             'remaining_seconds' => $remaining_seconds,
             'answers'     => array_map(
                 static function ( array $answer ): array {
+                    $choice_id = $answer['choice_id'] ?? null;
+
                     return array(
                         'question_id' => (int) $answer['question_id'],
-                        'choice_id'   => (int) $answer['choice_id'],
+                        'choice_id'   => is_null( $choice_id ) ? null : (int) $choice_id,
                     );
                 },
-                $answers
+                $stored_answers
             ),
         );
     }
@@ -539,35 +545,38 @@ if ( ! $attempt_id ) {
      * @return array|WP_Error
      */
     private function normalize_answers_payload( array $payload ) {
-        if ( isset( $payload['answers'] ) && is_array( $payload['answers'] ) ) {
-            $items = $payload['answers'];
-        } elseif ( isset( $payload['question_id'], $payload['choice_id'] ) ) {
-            $items = array(
-                array(
-                    'question_id' => $payload['question_id'],
-                    'choice_id'   => $payload['choice_id'],
-                ),
-            );
-        } else {
-            return new WP_Error( 'invalid_answers', __( 'No answers provided.', 'danesh-online-exam' ), array( 'status' => 400 ) );
+        if ( ! isset( $payload['answers'] ) || ! is_array( $payload['answers'] ) ) {
+            return new WP_Error( 'invalid_answers', __( 'Answers must be an array.', 'danesh-online-exam' ), array( 'status' => 400 ) );
         }
 
         $normalized = array();
 
-        foreach ( $items as $index => $item ) {
-            if ( ! is_array( $item ) || ! isset( $item['question_id'], $item['choice_id'] ) ) {
+        foreach ( $payload['answers'] as $index => $item ) {
+            if ( ! is_array( $item ) || ! array_key_exists( 'question_id', $item ) || ! array_key_exists( 'choice_id', $item ) ) {
                 return new WP_Error( 'invalid_answer', __( 'Each answer must include question_id and choice_id.', 'danesh-online-exam' ), array( 'status' => 400 ) );
             }
 
-            if ( ! is_numeric( $item['question_id'] ) || ! is_numeric( $item['choice_id'] ) ) {
-                return new WP_Error( 'invalid_answer', __( 'Answer fields must be numeric.', 'danesh-online-exam' ), array( 'status' => 400 ) );
+            if ( ! is_numeric( $item['question_id'] ) ) {
+                return new WP_Error( 'invalid_answer', __( 'Question ID must be numeric.', 'danesh-online-exam' ), array( 'status' => 400 ) );
             }
 
             $question_id = (int) $item['question_id'];
-            $choice_id   = (int) $item['choice_id'];
+            $choice_id   = $item['choice_id'];
 
-            if ( $question_id < 0 || $choice_id < 0 ) {
-                return new WP_Error( 'invalid_answer', __( 'Answer identifiers must be non-negative.', 'danesh-online-exam' ), array( 'status' => 400 ) );
+            if ( $question_id <= 0 ) {
+                return new WP_Error( 'invalid_answer', __( 'Question ID must be positive.', 'danesh-online-exam' ), array( 'status' => 400 ) );
+            }
+
+            if ( ! is_null( $choice_id ) ) {
+                if ( ! is_numeric( $choice_id ) ) {
+                    return new WP_Error( 'invalid_answer', __( 'Choice ID must be numeric or null.', 'danesh-online-exam' ), array( 'status' => 400 ) );
+                }
+
+                $choice_id = (int) $choice_id;
+
+                if ( $choice_id <= 0 ) {
+                    return new WP_Error( 'invalid_answer', __( 'Choice ID must be positive when provided.', 'danesh-online-exam' ), array( 'status' => 400 ) );
+                }
             }
 
             $normalized[] = array(
@@ -577,6 +586,23 @@ if ( ! $attempt_id ) {
         }
 
         return $normalized;
+    }
+
+    /**
+     * Deduplicate answers by question ID keeping the last occurrence.
+     *
+     * @param array $answers Normalized answers.
+     *
+     * @return array
+     */
+    private function dedupe_answers_by_question( array $answers ): array {
+        $deduped = array();
+
+        foreach ( $answers as $answer ) {
+            $deduped[ $answer['question_id'] ] = $answer;
+        }
+
+        return array_values( $deduped );
     }
 
     /**
