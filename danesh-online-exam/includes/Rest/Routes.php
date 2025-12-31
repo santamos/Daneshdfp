@@ -762,16 +762,16 @@ class Routes {
                             'validate_callback' => array( $this, 'validate_non_negative_int' ),
                         ),
                         'choice_id'   => array(
-                            'type'              => 'integer',
-                            'sanitize_callback' => 'absint',
+                            'type'              => array( 'integer', 'null' ),
+                            'sanitize_callback' => array( $this, 'sanitize_nullable_absint' ),
                             'required'          => false,
-                            'validate_callback' => array( $this, 'validate_non_negative_int' ),
+                            'validate_callback' => array( $this, 'validate_nullable_non_negative_int' ),
                         ),
                         'selected_choice_id'   => array(
-                            'type'              => 'integer',
-                            'sanitize_callback' => 'absint',
+                            'type'              => array( 'integer', 'null' ),
+                            'sanitize_callback' => array( $this, 'sanitize_nullable_absint' ),
                             'required'          => false,
-                            'validate_callback' => array( $this, 'validate_non_negative_int' ),
+                            'validate_callback' => array( $this, 'validate_nullable_non_negative_int' ),
                         ),
                     ),
                 ),
@@ -798,12 +798,38 @@ class Routes {
     }
 
     /**
+     * Sanitize nullable integer fields.
+     *
+     * @param mixed $value Raw value.
+     */
+    public function sanitize_nullable_absint( $value ) {
+        if ( is_null( $value ) ) {
+            return null;
+        }
+
+        return absint( $value );
+    }
+
+    /**
      * Validate non-negative integer fields.
      *
      * @param mixed $value Value to validate.
      */
     public function validate_non_negative_int( $value ): bool {
         return is_numeric( $value ) && ( (int) $value ) >= 0;
+    }
+
+    /**
+     * Validate nullable non-negative integer fields.
+     *
+     * @param mixed $value Value to validate.
+     */
+    public function validate_nullable_non_negative_int( $value ): bool {
+        if ( is_null( $value ) ) {
+            return true;
+        }
+
+        return $this->validate_non_negative_int( $value );
     }
 
     /**
