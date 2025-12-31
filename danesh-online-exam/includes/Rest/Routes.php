@@ -624,7 +624,12 @@ class Routes {
         $param = $request->get_param( 'danesh_envelope' );
 
         if ( null !== $param ) {
-            return (bool) rest_sanitize_boolean( $param );
+            if ( is_array( $param ) ) {
+                $param_values = array_values( $param );
+                $param        = end( $param_values );
+            }
+
+            return $this->is_truthy_envelope_value( $param );
         }
 
         $header = $request->get_header( 'X-Danesh-Envelope' );
@@ -633,9 +638,25 @@ class Routes {
             return false;
         }
 
-        $normalized = strtolower( trim( (string) $header ) );
+        if ( is_array( $header ) ) {
+            $header_values = array_values( $header );
+            $header        = reset( $header_values );
+        }
 
-        return in_array( $normalized, array( '1', 'true', 'yes', 'on' ), true );
+        return $this->is_truthy_envelope_value( $header );
+    }
+
+    /**
+     * Determine whether a value opts into the response envelope.
+     *
+     * @param mixed $value Value to inspect.
+     */
+    private function is_truthy_envelope_value( $value ): bool {
+        if ( is_string( $value ) ) {
+            $value = strtolower( trim( $value ) );
+        }
+
+        return in_array( $value, array( 1, true, '1', 'true', 'yes', 'on' ), true );
     }
 
     /**
