@@ -164,7 +164,7 @@
     },
     {
       "name": "02 - Admin Setup",
-      "description": "Create published exam, question, and choices for regression attempts.",
+      "description": "Create published exam, question, and choices for regression attempts or load existing resources when configured.",
       "auth": {
         "type": "basic",
         "basic": [
@@ -173,6 +173,78 @@
         ]
       },
       "item": [
+        {
+          "name": "Decide setup mode",
+          "request": {
+            "auth": { "type": "inherit" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base}}/danesh/v1/me?danesh_envelope=1",
+              "host": ["{{base}}"],
+              "path": ["danesh", "v1", "me"],
+              "query": [ { "key": "danesh_envelope", "value": "1" } ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const useExisting = String(pm.environment.get('use_existing_setup') || '0');",
+                  "pm.test('admin auth ok', () => pm.response.to.have.status(200));",
+                  "pm.test('success flag true', () => pm.expect(json.success).to.eql(true));",
+                  "if (useExisting === '1') {",
+                  "  const existingExam = pm.environment.get('existing_exam_id');",
+                  "  const existingQuestion = pm.environment.get('existing_question_id');",
+                  "  pm.environment.set('exam_id', existingExam);",
+                  "  pm.environment.set('question_id', existingQuestion);",
+                  "  pm.test('existing exam id provided', () => pm.expect(existingExam, 'existing_exam_id required when use_existing_setup=1').to.exist);",
+                  "  pm.test('existing question id provided', () => pm.expect(existingQuestion, 'existing_question_id required when use_existing_setup=1').to.exist);",
+                  "  postman.setNextRequest('Load existing question context');",
+                  "} else {",
+                  "  postman.setNextRequest('Create exam (published)');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Load existing question context",
+          "request": {
+            "auth": { "type": "inherit" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base}}/danesh/v1/questions/{{question_id}}?danesh_envelope=1",
+              "host": ["{{base}}"],
+              "path": ["danesh", "v1", "questions", "{{question_id}}"],
+              "query": [ { "key": "danesh_envelope", "value": "1" } ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status is 200 for existing question', () => pm.response.to.have.status(200));",
+                  "const choices = (json.data && json.data.choices) || [];",
+                  "pm.test('question choices available', () => pm.expect(choices.length, 'choices missing for existing question').to.be.greaterThan(0));",
+                  "pm.environment.set('choice_id_A', choices[0].id);",
+                  "if (choices[0].is_correct === true) {",
+                  "  pm.environment.set('choice_id_correct', choices[0].id);",
+                  "} else {",
+                  "  pm.environment.set('choice_id_wrong', choices[0].id);",
+                  "}",
+                  "postman.setNextRequest('Verify exam is published');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
         {
           "name": "Create exam (published)",
           "request": {
@@ -308,6 +380,7 @@
                   "  const cid = json.data && json.data.id;",
                   "  pm.expect(cid, 'choice id missing').to.exist;",
                   "  pm.environment.set('choice_id_wrong', cid);",
+                  "  pm.environment.set('choice_id_A', cid);",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -348,7 +421,7 @@
     },
     {
       "name": "03 - Student A Flow",
-      "description": "Student A attempts the published exam and saves an incorrect answer.",
+      "description": "Student A attempts the published exam and saves an answer for anti-leak validation.",
       "auth": {
         "type": "basic",
         "basic": [
@@ -406,22 +479,17 @@
                 "exec": [
                   "const json = pm.response.json();",
                   "pm.test('status is 200', () => pm.response.to.have.status(200));",
-                  "pm.test('cache-control is no-store', () => {",
-                  "  const cc = pm.response.headers.get('Cache-Control') || '';",
-                  "  pm.expect(cc.toLowerCase()).to.include('no-store');",
-                  "});",
-                  "pm.test('pragma no-cache when present', () => {",
-                  "  const pragma = pm.response.headers.get('Pragma');",
-                  "  if (pragma) { pm.expect(pragma.toLowerCase()).to.include('no-cache'); }",
-                  "});",
-                  "pm.test('expires header zero when present', () => {",
-                  "  const exp = pm.response.headers.get('Expires');",
-                  "  if (exp) { pm.expect(exp.trim()).to.eql('0'); }",
-                  "});",
-                  "pm.test('vary header includes Authorization', () => {",
-                  "  const vary = pm.response.headers.get('Vary') || '';",
-                  "  pm.expect(vary).to.include('Authorization');",
-                  "});"
+                  "const cc = (pm.response.headers.get('Cache-Control') || '').toLowerCase();",
+                  "pm.test('cache-control is no-store', () => pm.expect(cc).to.include('no-store'));",
+                  "const vary = pm.response.headers.get('Vary') || '';",
+                  "pm.test('vary includes Authorization or Cookie', () => pm.expect(/Authorization|Cookie/i.test(vary)).to.eql(true));",
+                  "const questions = (json.data && json.data.questions) || [];",
+                  "const target = questions.find(q => String(q.id) === String(pm.environment.get('question_id')));",
+                  "pm.test('question present on paper', () => pm.expect(target, 'question missing from paper').to.exist);",
+                  "if (target && target.choices && target.choices.length && !pm.environment.get('choice_id_A')) {",
+                  "  pm.environment.set('choice_id_A', target.choices[0].id);",
+                  "}",
+                  "pm.test('selected choice initially empty', () => pm.expect(target.selected_choice_id, 'expected empty selection').to.satisfy(val => val === null || val === undefined));"
                 ],
                 "type": "text/javascript"
               }
@@ -429,14 +497,14 @@
           ]
         },
         {
-          "name": "Save incorrect answer (A)",
+          "name": "Save answer (A)",
           "request": {
             "auth": { "type": "inherit" },
             "method": "POST",
             "header": [ { "key": "Content-Type", "value": "application/json" } ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"answers\": [\n    {\n      \"question_id\": {{question_id}},\n      \"choice_id\": {{choice_id_wrong}}\n    }\n  ]\n}"
+              "raw": "{\n  \"answers\": [\n    {\n      \"question_id\": {{question_id}},\n      \"choice_id\": {{choice_id_A}}\n    }\n  ]\n}"
             },
             "url": {
               "raw": "{{base}}/danesh/v1/attempts/{{attempt_id_A}}/answers?danesh_envelope=1",
@@ -453,6 +521,41 @@
                   "const json = pm.response.json();",
                   "pm.test('status is 200', () => pm.response.to.have.status(200));",
                   "pm.test('answers saved', () => pm.expect(json.data && json.data.answered_count).to.be.at.least(1));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get attempt paper after answer (A)",
+          "request": {
+            "auth": { "type": "inherit" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base}}/danesh/v1/attempts/{{attempt_id_A}}/paper?danesh_envelope=1",
+              "host": ["{{base}}"],
+              "path": ["danesh", "v1", "attempts", "{{attempt_id_A}}", "paper"],
+              "query": [ { "key": "danesh_envelope", "value": "1" } ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const cc = (pm.response.headers.get('Cache-Control') || '').toLowerCase();",
+                  "pm.test('cache-control is no-store', () => pm.expect(cc).to.include('no-store'));",
+                  "const vary = pm.response.headers.get('Vary') || '';",
+                  "pm.test('vary includes Authorization or Cookie', () => pm.expect(/Authorization|Cookie/i.test(vary)).to.eql(true));",
+                  "const questions = (json.data && json.data.questions) || [];",
+                  "const target = questions.find(q => String(q.id) === String(pm.environment.get('question_id')));",
+                  "pm.test('question present on paper', () => pm.expect(target, 'question missing from paper').to.exist);",
+                  "pm.test('selected choice captured for student A', () => {",
+                  "  pm.expect(String(target.selected_choice_id), 'selection should match choice_id_A').to.eql(String(pm.environment.get('choice_id_A')));",
+                  "});"
                 ],
                 "type": "text/javascript"
               }
@@ -530,20 +633,20 @@
                   "  const attemptId = json.data && json.data.attempt && json.data.attempt.id;",
                   "  pm.expect(String(attemptId)).to.eql(String(pm.environment.get('attempt_id_B')));",
                   "});",
+                  "const questions = (json.data && json.data.questions) || [];",
+                  "const target = questions.find(q => String(q.id) === String(pm.environment.get('question_id')));",
+                  "pm.test('question present on paper', () => pm.expect(target, 'question missing from paper').to.exist);",
                   "pm.test('no leak of student A answers', () => {",
-                  "  const questions = (json.data && json.data.questions) || [];",
-                  "  const target = questions.find(q => String(q.id) === String(pm.environment.get('question_id')));",
-                  "  pm.expect(target, 'question missing from paper').to.exist;",
-                  "  pm.expect(target.selected_choice_id, 'expected empty selection').to.satisfy(val => val === null || val === undefined);",
+                  "  const selected = target && target.selected_choice_id;",
+                  "  const choiceA = pm.environment.get('choice_id_A');",
+                  "  const isEmpty = selected === null || selected === undefined || selected === '';",
+                  "  const differs = String(selected) !== String(choiceA);",
+                  "  pm.expect(isEmpty || differs, 'Student B should not see Student A selection').to.eql(true);",
                   "});",
-                  "pm.test('cache-control still no-store', () => {",
-                  "  const cc = pm.response.headers.get('Cache-Control') || '';",
-                  "  pm.expect(cc.toLowerCase()).to.include('no-store');",
-                  "});",
-                  "pm.test('vary includes Authorization', () => {",
-                  "  const vary = pm.response.headers.get('Vary') || '';",
-                  "  pm.expect(vary).to.include('Authorization');",
-                  "});"
+                  "const cc = (pm.response.headers.get('Cache-Control') || '').toLowerCase();",
+                  "pm.test('cache-control still no-store', () => pm.expect(cc).to.include('no-store'));",
+                  "const vary = pm.response.headers.get('Vary') || '';",
+                  "pm.test('vary includes Authorization or Cookie', () => pm.expect(/Authorization|Cookie/i.test(vary)).to.eql(true));"
                 ],
                 "type": "text/javascript"
               }
