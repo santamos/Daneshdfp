@@ -1,0 +1,602 @@
+{
+  "info": {
+    "name": "Danesh Online Exam - Regression Suite",
+    "description": "Regression coverage for the danesh-online-exam WordPress plugin. Uses environment variables for credentials and resources created at runtime.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 - Smoke",
+      "description": "Basic availability checks with an authenticated admin user.",
+      "auth": {
+        "type": "basic",
+        "basic": [
+          { "key": "username", "value": "{{admin_user}}", "type": "string" },
+          { "key": "password", "value": "{{admin_app_password}}", "type": "string" }
+        ]
+      },
+      "item": [
+        {
+          "name": "GET /me",
+          "request": {
+            "auth": { "type": "inherit" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base}}/danesh/v1/me?danesh_envelope=1",
+              "host": ["{{base}}"],
+              "path": ["danesh", "v1", "me"],
+              "query": [ { "key": "danesh_envelope", "value": "1" } ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('success flag true', () => pm.expect(json.success).to.eql(true));",
+                  "pm.test('meta status 200', () => pm.expect(json.meta && json.meta.status).to.eql(200));",
+                  "pm.test('user id present', () => pm.expect(json.data && json.data.user_id, 'user_id missing').to.exist);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 - Auth Status Codes",
+      "description": "Verify authentication enforcement across endpoints.",
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "GET /me (no auth)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base}}/danesh/v1/me?danesh_envelope=1",
+              "host": ["{{base}}"],
+              "path": ["danesh", "v1", "me"],
+              "query": [ { "key": "danesh_envelope", "value": "1" } ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status is 401', () => pm.response.to.have.status(401));",
+                  "pm.test('not logged in response', () => {",
+                  "  if (json.success !== undefined) {",
+                  "    pm.expect(json.success).to.eql(false);",
+                  "    pm.expect(json.meta && json.meta.status).to.eql(401);",
+                  "    pm.expect(json.error && json.error.code).to.eql('rest_not_logged_in');",
+                  "  } else {",
+                  "    pm.expect(json.code).to.eql('rest_not_logged_in');",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /exams (no auth)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Unauthorized Exam\",\n  \"status\": \"draft\"\n}"
+            },
+            "url": {
+              "raw": "{{base}}/danesh/v1/exams?danesh_envelope=1",
+              "host": ["{{base}}"],
+              "path": ["danesh", "v1", "exams"],
+              "query": [ { "key": "danesh_envelope", "value": "1" } ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status is 401', () => pm.response.to.have.status(401));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /exams (Student A forbidden)",
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{studentA_user}}", "type": "string" },
+                { "key": "password", "value": "{{studentA_app_password}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Forbidden Exam\",\n  \"status\": \"draft\"\n}"
+            },
+            "url": {
+              "raw": "{{base}}/danesh/v1/exams?danesh_envelope=1",
+              "host": ["{{base}}"],
+              "path": ["danesh", "v1", "exams"],
+              "query": [ { "key": "danesh_envelope", "value": "1" } ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status is 403', () => pm.response.to.have.status(403));",
+                  "pm.test('forbidden response', () => {",
+                  "  if (json.success !== undefined) {",
+                  "    pm.expect(json.success).to.eql(false);",
+                  "    pm.expect(json.meta && json.meta.status).to.eql(403);",
+                  "    pm.expect(json.error && json.error.code).to.eql('rest_forbidden');",
+                  "  } else {",
+                  "    pm.expect(json.code).to.eql('rest_forbidden');",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Admin Setup",
+      "description": "Create published exam, question, and choices for regression attempts.",
+      "auth": {
+        "type": "basic",
+        "basic": [
+          { "key": "username", "value": "{{admin_user}}", "type": "string" },
+          { "key": "password", "value": "{{admin_app_password}}", "type": "string" }
+        ]
+      },
+      "item": [
+        {
+          "name": "Create exam (published)",
+          "request": {
+            "auth": { "type": "inherit" },
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Regression Exam\",\n  \"status\": \"published\",\n  \"duration_seconds\": 900\n}"
+            },
+            "url": {
+              "raw": "{{base}}/danesh/v1/exams?danesh_envelope=1",
+              "host": ["{{base}}"],
+              "path": ["danesh", "v1", "exams"],
+              "query": [ { "key": "danesh_envelope", "value": "1" } ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status is 201 or 200', () => pm.expect([200,201]).to.include(pm.response.code));",
+                  "pm.test('exam id stored', () => {",
+                  "  const id = json.data && json.data.id;",
+                  "  pm.expect(id, 'exam id missing').to.exist;",
+                  "  pm.environment.set('exam_id', id);",
+                  "});",
+                  "pm.test('exam status published', () => pm.expect(json.data && json.data.status).to.eql('published'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create question",
+          "request": {
+            "auth": { "type": "inherit" },
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"What is the correct regression answer?\",\n  \"points\": 1,\n  \"sort_order\": 1,\n  \"type\": \"mcq\"\n}"
+            },
+            "url": {
+              "raw": "{{base}}/danesh/v1/exams/{{exam_id}}/questions?danesh_envelope=1",
+              "host": ["{{base}}"],
+              "path": ["danesh", "v1", "exams", "{{exam_id}}", "questions"],
+              "query": [ { "key": "danesh_envelope", "value": "1" } ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status is 201 or 200', () => pm.expect([200,201]).to.include(pm.response.code));",
+                  "pm.test('question id stored', () => {",
+                  "  const qid = json.data && json.data.id;",
+                  "  pm.expect(qid, 'question id missing').to.exist;",
+                  "  pm.environment.set('question_id', qid);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create correct choice",
+          "request": {
+            "auth": { "type": "inherit" },
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"choice_text\": \"Correct choice\",\n  \"is_correct\": true,\n  \"sort_order\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base}}/danesh/v1/questions/{{question_id}}/choices?danesh_envelope=1",
+              "host": ["{{base}}"],
+              "path": ["danesh", "v1", "questions", "{{question_id}}", "choices"],
+              "query": [ { "key": "danesh_envelope", "value": "1" } ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status is 201 or 200', () => pm.expect([200,201]).to.include(pm.response.code));",
+                  "pm.test('store correct choice id', () => {",
+                  "  const cid = json.data && json.data.id;",
+                  "  pm.expect(cid, 'choice id missing').to.exist;",
+                  "  pm.environment.set('choice_id_correct', cid);",
+                  "});",
+                  "pm.test('choice marked correct', () => pm.expect(json.data && json.data.is_correct).to.eql(true));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create wrong choice",
+          "request": {
+            "auth": { "type": "inherit" },
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"choice_text\": \"Wrong choice\",\n  \"is_correct\": false,\n  \"sort_order\": 2\n}"
+            },
+            "url": {
+              "raw": "{{base}}/danesh/v1/questions/{{question_id}}/choices?danesh_envelope=1",
+              "host": ["{{base}}"],
+              "path": ["danesh", "v1", "questions", "{{question_id}}", "choices"],
+              "query": [ { "key": "danesh_envelope", "value": "1" } ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status is 201 or 200', () => pm.expect([200,201]).to.include(pm.response.code));",
+                  "pm.test('store wrong choice id', () => {",
+                  "  const cid = json.data && json.data.id;",
+                  "  pm.expect(cid, 'choice id missing').to.exist;",
+                  "  pm.environment.set('choice_id_wrong', cid);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify exam is published",
+          "request": {
+            "auth": { "type": "inherit" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base}}/danesh/v1/exams/{{exam_id}}?danesh_envelope=1",
+              "host": ["{{base}}"],
+              "path": ["danesh", "v1", "exams", "{{exam_id}}"],
+              "query": [ { "key": "danesh_envelope", "value": "1" } ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('published exam ready for attempts', () => {",
+                  "  const published = json.data && json.data.status === 'published';",
+                  "  pm.expect(published, 'Exam must be published for attempts').to.eql(true);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 - Student A Flow",
+      "description": "Student A attempts the published exam and saves an incorrect answer.",
+      "auth": {
+        "type": "basic",
+        "basic": [
+          { "key": "username", "value": "{{studentA_user}}", "type": "string" },
+          { "key": "password", "value": "{{studentA_app_password}}", "type": "string" }
+        ]
+      },
+      "item": [
+        {
+          "name": "Start attempt (A)",
+          "request": {
+            "auth": { "type": "inherit" },
+            "method": "POST",
+            "url": {
+              "raw": "{{base}}/danesh/v1/exams/{{exam_id}}/attempts?danesh_envelope=1",
+              "host": ["{{base}}"],
+              "path": ["danesh", "v1", "exams", "{{exam_id}}", "attempts"],
+              "query": [ { "key": "danesh_envelope", "value": "1" } ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status is 200 or 201', () => pm.expect([200,201]).to.include(pm.response.code));",
+                  "pm.test('attempt id saved for student A', () => {",
+                  "  const aid = json.data && (json.data.id || json.data.attempt_id);",
+                  "  pm.expect(aid, 'attempt id missing').to.exist;",
+                  "  pm.environment.set('attempt_id_A', aid);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get attempt paper (A)",
+          "request": {
+            "auth": { "type": "inherit" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base}}/danesh/v1/attempts/{{attempt_id_A}}/paper?danesh_envelope=1",
+              "host": ["{{base}}"],
+              "path": ["danesh", "v1", "attempts", "{{attempt_id_A}}", "paper"],
+              "query": [ { "key": "danesh_envelope", "value": "1" } ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('cache-control is no-store', () => {",
+                  "  const cc = pm.response.headers.get('Cache-Control') || '';",
+                  "  pm.expect(cc.toLowerCase()).to.include('no-store');",
+                  "});",
+                  "pm.test('pragma no-cache when present', () => {",
+                  "  const pragma = pm.response.headers.get('Pragma');",
+                  "  if (pragma) { pm.expect(pragma.toLowerCase()).to.include('no-cache'); }",
+                  "});",
+                  "pm.test('expires header zero when present', () => {",
+                  "  const exp = pm.response.headers.get('Expires');",
+                  "  if (exp) { pm.expect(exp.trim()).to.eql('0'); }",
+                  "});",
+                  "pm.test('vary header includes Authorization', () => {",
+                  "  const vary = pm.response.headers.get('Vary') || '';",
+                  "  pm.expect(vary).to.include('Authorization');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Save incorrect answer (A)",
+          "request": {
+            "auth": { "type": "inherit" },
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    {\n      \"question_id\": {{question_id}},\n      \"choice_id\": {{choice_id_wrong}}\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base}}/danesh/v1/attempts/{{attempt_id_A}}/answers?danesh_envelope=1",
+              "host": ["{{base}}"],
+              "path": ["danesh", "v1", "attempts", "{{attempt_id_A}}", "answers"],
+              "query": [ { "key": "danesh_envelope", "value": "1" } ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('answers saved', () => pm.expect(json.data && json.data.answered_count).to.be.at.least(1));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 - Student B Anti-Leak",
+      "description": "Ensure Student B cannot see Student A selections while taking the exam.",
+      "auth": {
+        "type": "basic",
+        "basic": [
+          { "key": "username", "value": "{{studentB_user}}", "type": "string" },
+          { "key": "password", "value": "{{studentB_app_password}}", "type": "string" }
+        ]
+      },
+      "item": [
+        {
+          "name": "Start attempt (B)",
+          "request": {
+            "auth": { "type": "inherit" },
+            "method": "POST",
+            "url": {
+              "raw": "{{base}}/danesh/v1/exams/{{exam_id}}/attempts?danesh_envelope=1",
+              "host": ["{{base}}"],
+              "path": ["danesh", "v1", "exams", "{{exam_id}}", "attempts"],
+              "query": [ { "key": "danesh_envelope", "value": "1" } ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status is 200 or 201', () => pm.expect([200,201]).to.include(pm.response.code));",
+                  "pm.test('attempt id saved for student B', () => {",
+                  "  const aid = json.data && (json.data.id || json.data.attempt_id);",
+                  "  pm.expect(aid, 'attempt id missing').to.exist;",
+                  "  pm.environment.set('attempt_id_B', aid);",
+                  "});",
+                  "pm.test('attempts differ between users', () => {",
+                  "  const aid = json.data && (json.data.id || json.data.attempt_id);",
+                  "  const aidA = pm.environment.get('attempt_id_A');",
+                  "  pm.expect(String(aid)).to.not.eql(String(aidA));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get attempt paper (B)",
+          "request": {
+            "auth": { "type": "inherit" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base}}/danesh/v1/attempts/{{attempt_id_B}}/paper?danesh_envelope=1",
+              "host": ["{{base}}"],
+              "path": ["danesh", "v1", "attempts", "{{attempt_id_B}}", "paper"],
+              "query": [ { "key": "danesh_envelope", "value": "1" } ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('response bound to attempt B', () => {",
+                  "  const attemptId = json.data && json.data.attempt && json.data.attempt.id;",
+                  "  pm.expect(String(attemptId)).to.eql(String(pm.environment.get('attempt_id_B')));",
+                  "});",
+                  "pm.test('no leak of student A answers', () => {",
+                  "  const questions = (json.data && json.data.questions) || [];",
+                  "  const target = questions.find(q => String(q.id) === String(pm.environment.get('question_id')));",
+                  "  pm.expect(target, 'question missing from paper').to.exist;",
+                  "  pm.expect(target.selected_choice_id, 'expected empty selection').to.satisfy(val => val === null || val === undefined);",
+                  "});",
+                  "pm.test('cache-control still no-store', () => {",
+                  "  const cc = pm.response.headers.get('Cache-Control') || '';",
+                  "  pm.expect(cc.toLowerCase()).to.include('no-store');",
+                  "});",
+                  "pm.test('vary includes Authorization', () => {",
+                  "  const vary = pm.response.headers.get('Vary') || '';",
+                  "  pm.expect(vary).to.include('Authorization');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 - Cross-Access Forbidden",
+      "description": "Student B must not access Student A attempt data.",
+      "auth": {
+        "type": "basic",
+        "basic": [
+          { "key": "username", "value": "{{studentB_user}}", "type": "string" },
+          { "key": "password", "value": "{{studentB_app_password}}", "type": "string" }
+        ]
+      },
+      "item": [
+        {
+          "name": "Get Student A attempt as B",
+          "request": {
+            "auth": { "type": "inherit" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base}}/danesh/v1/attempts/{{attempt_id_A}}?danesh_envelope=1",
+              "host": ["{{base}}"],
+              "path": ["danesh", "v1", "attempts", "{{attempt_id_A}}"],
+              "query": [ { "key": "danesh_envelope", "value": "1" } ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('status is 403 or 404', () => pm.expect([403,404]).to.include(pm.response.code));",
+                  "pm.test('no Student A answers leaked', () => {",
+                  "  if (json.data) {",
+                  "    pm.expect(json.data.answers || json.data.questions, 'unexpected answer payload present').to.be.oneOf([undefined]);",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "protocolProfileBehavior": {
+    "disableBodyPruning": true
+  }
+}
