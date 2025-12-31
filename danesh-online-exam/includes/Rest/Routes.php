@@ -534,7 +534,13 @@ class Routes {
      * Permission check for exam management.
      */
     public function check_manage_permissions() {
-        if ( current_user_can( 'danesh_manage_exams' ) || current_user_can( 'manage_options' ) ) {
+        if ( ! is_user_logged_in() ) {
+            return new WP_Error( 'rest_not_logged_in', __( 'Authentication required.', 'danesh-online-exam' ), array( 'status' => 401 ) );
+        }
+
+        $can_manage = current_user_can( 'danesh_manage_exams' ) || current_user_can( 'manage_options' );
+
+        if ( $can_manage ) {
             return true;
         }
 
@@ -545,22 +551,22 @@ class Routes {
      * Permission check for viewing exam resources.
      */
     public function check_read_permissions() {
-        if ( is_user_logged_in() ) {
-            return true;
+        if ( ! is_user_logged_in() ) {
+            return new WP_Error( 'rest_not_logged_in', __( 'Authentication required.', 'danesh-online-exam' ), array( 'status' => 401 ) );
         }
 
-        return new WP_Error( 'rest_forbidden', __( 'Authentication required to view exams.', 'danesh-online-exam' ), array( 'status' => 403 ) );
+        return true;
     }
 
     /**
      * Permission check for students and managers.
      */
     public function check_student_permissions() {
-        if ( is_user_logged_in() ) {
-            return true;
+        if ( ! is_user_logged_in() ) {
+            return new WP_Error( 'rest_not_logged_in', __( 'Authentication required.', 'danesh-online-exam' ), array( 'status' => 401 ) );
         }
 
-        return new WP_Error( 'rest_forbidden', __( 'Authentication required.', 'danesh-online-exam' ), array( 'status' => 403 ) );
+        return true;
     }
 
     /**
