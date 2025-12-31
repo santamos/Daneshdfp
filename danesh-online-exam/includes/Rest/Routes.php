@@ -693,7 +693,29 @@ class Routes {
         }
 
         $enveloped_response = new WP_REST_Response( $payload, $status );
-        $enveloped_response->set_links( $rest_response->get_links() );
+        $links              = $rest_response->get_links();
+
+        if ( ! empty( $links ) ) {
+            if ( method_exists( $enveloped_response, 'add_links' ) ) {
+                $enveloped_response->add_links( $links );
+            } elseif ( method_exists( $enveloped_response, 'add_link' ) ) {
+                foreach ( $links as $rel => $link_group ) {
+                    if ( ! is_array( $link_group ) ) {
+                        continue;
+                    }
+
+                    foreach ( $link_group as $link ) {
+                        if ( ! is_array( $link ) || empty( $link['href'] ) ) {
+                            continue;
+                        }
+
+                        $attributes = $link;
+                        unset( $attributes['href'] );
+                        $enveloped_response->add_link( $rel, $link['href'], $attributes );
+                    }
+                }
+            }
+        }
 
         foreach ( $rest_response->get_headers() as $header => $value ) {
             $enveloped_response->header( $header, $value );
