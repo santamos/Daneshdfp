@@ -1,0 +1,35 @@
+name: Postman Regression (Newman)
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  newman:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install newman
+        run: npm install -g newman
+
+      - name: Run Postman regression suite
+        run: >
+          newman run postman/danesh_regression_collection.json
+          -e postman/danesh_regression_environment.example.json
+          --env-var base=${{ secrets.DANESH_BASE }}
+          --env-var admin_user=${{ secrets.DANESH_ADMIN_USER }}
+          --env-var admin_app_password=${{ secrets.DANESH_ADMIN_APP_PASSWORD }}
+          --env-var studentA_user=${{ secrets.DANESH_STUDENTA_USER }}
+          --env-var studentA_app_password=${{ secrets.DANESH_STUDENTA_APP_PASSWORD }}
+          --env-var studentB_user=${{ secrets.DANESH_STUDENTB_USER }}
+          --env-var studentB_app_password=${{ secrets.DANESH_STUDENTB_APP_PASSWORD }}
+          --env-var use_existing_setup=${{ secrets.DANESH_USE_EXISTING_SETUP }}
+          --env-var existing_exam_id=${{ secrets.DANESH_EXISTING_EXAM_ID }}
+          --env-var existing_question_id=${{ secrets.DANESH_EXISTING_QUESTION_ID }}
