@@ -75,7 +75,8 @@
               "const u = pm.environment.get('studentA_user');",
               "const p = pm.environment.get('studentA_app_password');",
               "if (!u || !p) throw new Error('Missing auth env vars');",
-              "pm.request.headers.upsert({ key: 'Authorization', value: 'Basic ' + btoa(u + ':' + p) });"
+              "const token = CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(u + ':' + p));",
+              "pm.request.headers.upsert({ key: 'Authorization', value: 'Basic ' + token });"
             ],
             "type": "text/javascript"
           }
@@ -239,6 +240,7 @@
                 "exec": [
                   "const json = pm.response.json() || {};",
                   "pm.test('status is 200 or 201', () => pm.expect([200,201]).to.include(pm.response.code));",
+                  "pm.environment.set('attemptA_is_new', pm.response.code === 201 ? '1' : '0');",
                   "pm.test('attempt id saved for student A', () => {",
                   "  const aid = json.data && (json.data.id || json.data.attempt_id);",
                   "  pm.expect(aid, 'attempt id missing').to.exist;",
@@ -361,9 +363,22 @@
                   "const target = questions.find(q => String(q.id) === String(pm.environment.get('question_id')));",
                   "pm.test('question present on paper', () => pm.expect(target, 'question missing from paper').to.exist);",
                   "if (target && target.choices && target.choices.length && !pm.environment.get('choice_id_A')) {",
-                  "  pm.environment.set('choice_id_A', target.choices[0].id);",
+                    "  pm.environment.set('choice_id_A', target.choices[0].id);",
                   "}",
-                  "pm.test('selected choice initially empty', () => pm.expect(target.selected_choice_id, 'expected empty selection').to.satisfy(val => val === null || val === undefined));"
+                  "const attemptIsNew = pm.environment.get('attemptA_is_new');",
+                  "pm.test('selected choice initially empty', () => {",
+                  "  const selected = target && target.selected_choice_id;",
+                  "  const isEmpty = selected === null || selected === undefined;",
+                  "  if (attemptIsNew === '1') {",
+                  "    pm.expect(isEmpty, 'expected empty selection for new attempt').to.eql(true);",
+                  "  } else {",
+                  "    const isNumber = typeof selected === 'number';",
+                  "    pm.expect(isEmpty || isNumber, 'expected empty selection or numeric choice when reusing attempt').to.eql(true);",
+                  "    if (!isEmpty) {",
+                  "      console.warn('Attempt A reused; selected_choice_id present:', selected);",
+                  "    }",
+                  "  }",
+                  "});"
                 ],
                 "type": "text/javascript"
               }
@@ -504,7 +519,8 @@
               "const u = pm.environment.get('studentA_user');",
               "const p = pm.environment.get('studentA_app_password');",
               "if (!u || !p) throw new Error('Missing auth env vars');",
-              "pm.request.headers.upsert({ key: 'Authorization', value: 'Basic ' + btoa(u + ':' + p) });"
+              "const token = CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(u + ':' + p));",
+              "pm.request.headers.upsert({ key: 'Authorization', value: 'Basic ' + token });"
             ],
             "type": "text/javascript"
           }
@@ -716,7 +732,8 @@
               "const u = pm.environment.get('studentB_user');",
               "const p = pm.environment.get('studentB_app_password');",
               "if (!u || !p) throw new Error('Missing auth env vars');",
-              "pm.request.headers.upsert({ key: 'Authorization', value: 'Basic ' + btoa(u + ':' + p) });"
+              "const token = CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(u + ':' + p));",
+              "pm.request.headers.upsert({ key: 'Authorization', value: 'Basic ' + token });"
             ],
             "type": "text/javascript"
           }
@@ -795,7 +812,8 @@
               "const u = pm.environment.get('studentB_user');",
               "const p = pm.environment.get('studentB_app_password');",
               "if (!u || !p) throw new Error('Missing auth env vars');",
-              "pm.request.headers.upsert({ key: 'Authorization', value: 'Basic ' + btoa(u + ':' + p) });"
+              "const token = CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(u + ':' + p));",
+              "pm.request.headers.upsert({ key: 'Authorization', value: 'Basic ' + token });"
             ],
             "type": "text/javascript"
           }
