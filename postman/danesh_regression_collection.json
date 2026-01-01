@@ -16,7 +16,19 @@
           "name": "GET /me",
           "request": {
             "auth": {
-              "type": "inherit"
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{studentA_user}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{studentA_app_password}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "GET",
             "header": [],
@@ -81,7 +93,7 @@
           "name": "GET /me (no auth)",
           "request": {
             "auth": {
-              "type": "inherit"
+              "type": "noauth"
             },
             "method": "GET",
             "url": {
@@ -128,7 +140,7 @@
           "name": "POST /exams (no auth)",
           "request": {
             "auth": {
-              "type": "inherit"
+              "type": "noauth"
             },
             "method": "POST",
             "header": [
@@ -185,7 +197,19 @@
           "name": "Start attempt (A)",
           "request": {
             "auth": {
-              "type": "inherit"
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{studentA_user}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{studentA_app_password}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "POST",
             "url": {
@@ -230,7 +254,19 @@
           "name": "Get active attempt (A)",
           "request": {
             "auth": {
-              "type": "inherit"
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{studentA_user}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{studentA_app_password}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "GET",
             "url": {
@@ -275,7 +311,19 @@
           "name": "Get attempt paper (A)",
           "request": {
             "auth": {
-              "type": "inherit"
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{studentA_user}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{studentA_app_password}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "GET",
             "url": {
@@ -326,7 +374,19 @@
           "name": "Save answer (A)",
           "request": {
             "auth": {
-              "type": "inherit"
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{studentA_user}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{studentA_app_password}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "POST",
             "header": [
@@ -377,7 +437,19 @@
           "name": "Get attempt paper after answer (A)",
           "request": {
             "auth": {
-              "type": "inherit"
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{studentA_user}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{studentA_app_password}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "GET",
             "url": {
@@ -450,7 +522,19 @@
           "name": "Start attempt (B)",
           "request": {
             "auth": {
-              "type": "inherit"
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{studentB_user}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{studentB_app_password}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "POST",
             "url": {
@@ -500,7 +584,19 @@
           "name": "Get active attempt (B)",
           "request": {
             "auth": {
-              "type": "inherit"
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{studentB_user}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{studentB_app_password}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "GET",
             "url": {
@@ -545,7 +641,19 @@
           "name": "Get attempt paper (B)",
           "request": {
             "auth": {
-              "type": "inherit"
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{studentB_user}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{studentB_app_password}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "GET",
             "url": {
@@ -626,7 +734,19 @@
           "name": "Get Student A attempt as B",
           "request": {
             "auth": {
-              "type": "inherit"
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{studentB_user}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{studentB_app_password}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "GET",
             "url": {
