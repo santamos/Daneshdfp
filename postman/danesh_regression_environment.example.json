@@ -1,23 +1,78 @@
 {
   "name": "Danesh Regression Environment (Example)",
   "values": [
-    { "key": "base", "value": "https://dfpgroup.ir/wp-json", "type": "default", "enabled": true },
-    { "key": "admin_user", "value": "", "type": "default", "enabled": true },
-    { "key": "admin_app_password", "value": "", "type": "default", "enabled": true },
-    { "key": "studentA_user", "value": "", "type": "default", "enabled": true },
-    { "key": "studentA_app_password", "value": "", "type": "default", "enabled": true },
-    { "key": "studentB_user", "value": "", "type": "default", "enabled": true },
-    { "key": "studentB_app_password", "value": "", "type": "default", "enabled": true },
-    { "key": "use_existing_setup", "value": "0", "type": "default", "enabled": true },
-    { "key": "existing_exam_id", "value": "", "type": "default", "enabled": true },
-    { "key": "existing_question_id", "value": "", "type": "default", "enabled": true },
-    { "key": "exam_id", "value": "", "type": "default", "enabled": true },
-    { "key": "question_id", "value": "", "type": "default", "enabled": true },
-    { "key": "choice_id_correct", "value": "", "type": "default", "enabled": true },
-    { "key": "choice_id_wrong", "value": "", "type": "default", "enabled": true },
-    { "key": "choice_id_A", "value": "", "type": "default", "enabled": true },
-    { "key": "attempt_id_A", "value": "", "type": "default", "enabled": true },
-    { "key": "attempt_id_B", "value": "", "type": "default", "enabled": true }
+    {
+      "key": "base",
+      "value": "https://dfpgroup.ir/wp-json",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "admin_user",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "admin_app_password",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "studentA_user",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "studentA_app_password",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "studentB_user",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "studentB_app_password",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "exam_id",
+      "value": "19",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "question_id",
+      "value": "5",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "choice_id_A",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "attempt_id_A",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "attempt_id_B",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    }
   ],
   "_postman_variable_scope": "environment",
   "_postman_exported_at": "",
