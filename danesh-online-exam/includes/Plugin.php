@@ -72,8 +72,7 @@ class Plugin {
         $public     = new PublicModule();
         $shortcodes = new Shortcodes();
 
-        // Placeholder for public actions.
-        // $this->loader->add_action( 'wp_enqueue_scripts', $public, 'enqueue_styles' );
+        $this->loader->add_action( 'wp_enqueue_scripts', $public, 'register_assets', 5 );
 
         $this->loader->add_shortcode( 'danesh_exam', $shortcodes, 'render_exam' );
     }
