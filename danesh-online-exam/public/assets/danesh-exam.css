@@ -63,6 +63,7 @@
     display: flex;
     gap: 10px;
     margin-bottom: 12px;
+    align-items: center;
 }
 
 .danesh-exam__submit {
@@ -76,6 +77,21 @@
 }
 
 .danesh-exam__submit:disabled {
+    background: #a0a0a0;
+    cursor: not-allowed;
+}
+
+.danesh-exam__report {
+    background: #0c7c59;
+    color: #fff;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.danesh-exam__report:disabled {
     background: #a0a0a0;
     cursor: not-allowed;
 }
@@ -94,4 +110,13 @@
 
 .danesh-report__submitted {
     color: #555;
+}
+
+.danesh-exam--locked .danesh-choice {
+    cursor: default;
+    opacity: 0.75;
+}
+
+.danesh-exam--locked .danesh-exam__timer {
+    display: none;
 }
