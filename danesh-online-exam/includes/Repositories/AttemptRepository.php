@@ -182,6 +182,30 @@ class AttemptRepository {
     }
 
     /**
+     * Get the latest submitted attempt for a user and exam.
+     *
+     * @param int $exam_id Exam ID.
+     * @param int $user_id User ID.
+     *
+     * @return array|null
+     */
+    public function find_submitted_attempt( int $exam_id, int $user_id ): ?array {
+        global $wpdb;
+
+        $table = Tables::attempts();
+        $query = $wpdb->prepare(
+            "SELECT * FROM {$table} WHERE exam_id = %d AND user_id = %d AND status = %s ORDER BY finished_at DESC, id DESC LIMIT 1",
+            $exam_id,
+            $user_id,
+            'submitted'
+        );
+
+        $row = $wpdb->get_row( $query, ARRAY_A );
+
+        return $row ?: null;
+    }
+
+    /**
      * Mark an attempt as expired.
      *
      * @param int    $attempt_id Attempt ID.
