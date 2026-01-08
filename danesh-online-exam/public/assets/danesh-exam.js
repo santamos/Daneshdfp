@@ -495,6 +495,23 @@
                 } else if (error.status === 404) {
                     setStatus('Exam not found.', true);
                     state.hasFatalError = true;
+                } else if (error.status === 409 && error.data?.code === 'danesh_already_submitted') {
+                    const submittedAttemptId = error.data?.data?.attempt_id || error.data?.attempt_id || null;
+                    state.attemptStatus = STATUS_SUBMITTED;
+                    setStatus('You already submitted this exam');
+
+                    if (submittedAttemptId) {
+                        state.attemptId = submittedAttemptId;
+                        rememberAttempt({ status: STATUS_SUBMITTED });
+                        const report = await loadReport();
+                        if (report) {
+                            enterSubmittedState(report);
+                        } else {
+                            disableInputs();
+                        }
+                    } else {
+                        state.hasFatalError = true;
+                    }
                 } else {
                     setStatus(error.message || 'Unable to start exam.', true);
                 }

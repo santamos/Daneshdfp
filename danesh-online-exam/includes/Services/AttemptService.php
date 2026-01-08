@@ -225,8 +225,24 @@ foreach ( $selections as $selection ) {
 }
 
 $now            = $this->get_current_timestamp();
+$submitted_attempt = $this->attempts->find_submitted_attempt( $exam_id, $user_id );
 $active_attempt = $this->attempts->find_active_attempt( $exam_id, $user_id );
 $expires_at     = $active_attempt['expires_at'] ?? null;
+
+if ( $submitted_attempt ) {
+    if ( $active_attempt ) {
+        $this->attempts->mark_expired( (int) $active_attempt['id'], $this->format_gmt_datetime( $now ) );
+    }
+
+    return new WP_Error(
+        'danesh_already_submitted',
+        __( 'You already submitted this exam.', 'danesh-online-exam' ),
+        array(
+            'status'     => 409,
+            'attempt_id' => (int) $submitted_attempt['id'],
+        )
+    );
+}
 
 if ( $active_attempt && ! $this->is_expired( $expires_at, $now ) ) {
     $attempt            = $this->normalize_attempt( $active_attempt, $now );
